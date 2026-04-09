@@ -13,7 +13,7 @@ constexpr float PLAYER_HEIGHT      = 60.f;
 constexpr float JUMP_DURATION      = 0.2f;
 constexpr float PLATFORM_X         = 100.f;
 constexpr float PLATFORM_Y         = 450.f;
-constexpr float FALL_LIMIT         = WINDOW_H - 20.f; // Граница падения
+constexpr float FALL_LIMIT         = WINDOW_H - 20.f;
 
 // ─── Режимы Игры ─────────────────────────────────────────
 constexpr int   CLASSIC_TARGET_BALLOONS = 50;
@@ -29,6 +29,6 @@ constexpr float MAX_FALL_SPEED     = 400.f;
 constexpr int   SCORE_PER_HIT      = 10;
 
 namespace Paths {
-    inline const std::string FONT       = "../assets/fonts/arial.ttf";
+    inline const std::string FONT          = "../assets/fonts/arial.ttf";
     inline const std::string FONT_FALLBACK = "/System/Library/Fonts/Supplemental/Arial.ttf";
 }

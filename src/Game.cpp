@@ -1,8 +1,11 @@
 #include "Game.h"
+#include "Constants.h"
+#include "Balloon.h"
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
 #include <ctime>
+#include <SFML/System/Time.hpp>
 
 Game::Game()
     : mWindow(sf::VideoMode({WINDOW_W, WINDOW_H}), "BalloonTyper", sf::Style::Close)
@@ -29,6 +32,10 @@ void Game::run() {
     sf::Clock clock;
     while (mWindow.isOpen()) {
         float dt = clock.restart().asSeconds();
+        
+        // <-- ИСПРАВЛЕНИЕ 1: Ограничиваем dt, чтобы игрок не провалился сквозь пол при лаге
+        if (dt > 0.1f) dt = 0.1f; 
+
         processEvents();
         update(dt);
         render();
@@ -86,7 +93,6 @@ void Game::processEventsPlaying(const sf::Event& event) {
                         mCurrentBalloon = target;
                         mCurrentBalloon->startFalling();
                         
-                        // Если игрок только что воскрес, он просто перемещается, иначе прыгает
                         if(mPlayer.state() == Player::State::OnBalloon && !mCurrentBalloon) {
                              mPlayer.setBalloonPosition(target->position());
                         } else {
@@ -106,7 +112,7 @@ void Game::processEventsPlaying(const sf::Event& event) {
 void Game::processEventsGameOver(const sf::Event& event) {
     if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>()) {
         if (keyPressed->code == sf::Keyboard::Key::Enter) {
-            startGame(mCurrentMode); // Перезапуск в том же режиме
+            startGame(mCurrentMode);
         }
     }
 }
@@ -117,7 +123,7 @@ void Game::update(float dt) {
         mBlinkClock.restart();
     }
     if (mState == GameState::Playing) {
-        mStats.updateTime(); // Обновляем таймер только во время игры
+        mStats.updateTime();
         updatePlaying(dt);
     }
 }
@@ -140,21 +146,26 @@ void Game::updatePlaying(float dt) {
         }
     }
 
-    // Логика воскрешения
+    // <-- ИСПРАВЛЕНИЕ 2: Безопасное воскрешение
     if (mPlayer.needsRespawn()) {
         Balloon* nextB = mBalloons.nextAvailableBalloon(mPlayer.position().x);
+        
+        if (!nextB) {
+            // Если мы умерли, а шаров впереди нет, создаем "спасательный" шар
+            mBalloons.forceSpawnBalloonAt(mPlayer.position().x + 200.f);
+            nextB = mBalloons.nextAvailableBalloon(mPlayer.position().x);
+        }
+
         if (nextB) {
             mPlayer.respawnOn(nextB->position());
-            // Если был текущий шар (с которого упали), удаляем его
-             if (mCurrentBalloon) mCurrentBalloon->setState(Balloon::State::Done);
-             mCurrentBalloon = nextB; // Ниндзя висит на новом шаре, шар не падает
+            if (mCurrentBalloon) mCurrentBalloon->setState(Balloon::State::Done);
+            mCurrentBalloon = nextB; 
         } else {
-            // Если впереди нет шаров (например, конец классического уровня), то геймовер
-             mState = GameState::GameOver;
+            // Резервный выход, если что-то пошло не так
+            mState = GameState::GameOver;
         }
     }
 
-    // Проверка условий победы/поражения
     if (!mPlayer.isAlive()) {
         mState = GameState::GameOver;
         mStats.stopTimer();
@@ -178,7 +189,7 @@ void Game::render() {
     } else {
         mWindow.setView(mHudView);
         if (mState == GameState::Menu) renderMenu();
-        else renderGameOver(); // Используем один экран для Win и GameOver
+        else renderGameOver();
     }
 
     mWindow.display();
@@ -247,7 +258,6 @@ void Game::renderGameOver() {
     over.setStyle(sf::Text::Style::Bold);
     mWindow.draw(over);
 
-    // Статистика
     std::ostringstream statsStr;
     statsStr << std::fixed << std::setprecision(1);
 

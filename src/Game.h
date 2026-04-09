@@ -1,6 +1,5 @@
 #pragma once
 #include <SFML/Graphics.hpp>
-#include "Constants.h"
 #include "ResourceManager.h"
 #include "StatsTracker.h"
 #include "BalloonManager.h"
@@ -37,7 +36,7 @@ private:
     sf::View           mWorldView;
     sf::View           mHudView;
     GameState          mState;
-    GameMode           mCurrentMode; // Текущий режим игры
+    GameMode           mCurrentMode;
 
     ResourceManager    mRM;
     StatsTracker       mStats;
