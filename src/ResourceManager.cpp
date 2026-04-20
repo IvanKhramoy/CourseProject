@@ -2,7 +2,7 @@
 
 void ResourceManager::loadFont(const std::string& id, const std::string& path) {
     sf::Font font;
-    if (!font.openFromFile(path)) // Для SFML 3+
+    if (!font.openFromFile(path)) 
         throw std::runtime_error("Cannot load font: " + path);
     mFonts[id] = std::move(font);
 }

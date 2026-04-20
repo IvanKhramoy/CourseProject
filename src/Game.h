@@ -49,4 +49,7 @@ private:
     sf::Clock          mGameClock;
     sf::Clock          mBlinkClock;
     bool               mShowCursor = true;
+
+    // +
+    bool               mIsWaitingForTyping = false; 
 };

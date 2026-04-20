@@ -5,7 +5,6 @@
 #include <iomanip>
 #include <cstdlib>
 #include <ctime>
-#include <SFML/System/Time.hpp>
 
 Game::Game()
     : mWindow(sf::VideoMode({WINDOW_W, WINDOW_H}), "BalloonTyper", sf::Style::Close)
@@ -32,8 +31,6 @@ void Game::run() {
     sf::Clock clock;
     while (mWindow.isOpen()) {
         float dt = clock.restart().asSeconds();
-        
-        // <-- ИСПРАВЛЕНИЕ 1: Ограничиваем dt, чтобы игрок не провалился сквозь пол при лаге
         if (dt > 0.1f) dt = 0.1f; 
 
         processEvents();
@@ -86,22 +83,28 @@ void Game::processEventsPlaying(const sf::Event& event) {
                 if (target) {
                     if (target->letter() == typed) {
                         mStats.recordHit();
-                        mBalloons.increaseSpeed();
                         
-                        if (mCurrentBalloon) mCurrentBalloon->setState(Balloon::State::Done);
+                        if (mIsWaitingForTyping) {
+                            mIsWaitingForTyping = false;
+                        } else {
+                            mBalloons.increaseSpeed();
+                        }
+                        
+                        if (mCurrentBalloon && mCurrentBalloon != target) {
+                            mCurrentBalloon->setState(Balloon::State::Done);
+                        }
                         
                         mCurrentBalloon = target;
                         mCurrentBalloon->startFalling();
-                        
-                        if(mPlayer.state() == Player::State::OnBalloon && !mCurrentBalloon) {
-                             mPlayer.setBalloonPosition(target->position());
-                        } else {
-                            mPlayer.jumpTo(target->position());
-                        }
+                        mPlayer.jumpTo(target->position());
 
                     } else {
-                        mStats.recordMiss();
-                        if (mPlayer.state() == Player::State::OnBalloon) mPlayer.startFalling();
+                        if (!mIsWaitingForTyping) {
+                            mStats.recordMiss();
+                            // ИСПРАВЛЕНИЕ: Мы убрали mPlayer.startFalling(); отсюда.
+                            // Теперь при неверной букве записывается ошибка (Miss),
+                            // но ниндзя продолжает лететь на шаре дальше.
+                        }
                     }
                 }
             }
@@ -122,8 +125,12 @@ void Game::update(float dt) {
         mShowCursor = !mShowCursor;
         mBlinkClock.restart();
     }
+    
+    if (mState == GameState::Playing && !mIsWaitingForTyping) {
+        mStats.updateTime(); 
+    }
+    
     if (mState == GameState::Playing) {
-        mStats.updateTime();
         updatePlaying(dt);
     }
 }
@@ -136,32 +143,44 @@ void Game::updatePlaying(float dt) {
     float cameraRightEdge = mWorldView.getCenter().x + WINDOW_W / 2.f;
 
     mBalloons.update(dt, cameraRightEdge, mPlayer.position().x);
+
+    // Проверяем, не удалил ли менеджер текущий шар (если он улетел за экран)
+    if (mCurrentBalloon && !mBalloons.isValid(mCurrentBalloon)) {
+        mCurrentBalloon = nullptr;
+    }
+
+    // ИСПРАВЛЕНИЕ ЗАВИСАНИЯ ПОД ЭКРАНОМ: 
+    // Если ниндзя считает, что он "на шаре", но шар только что удалился (достиг низа экрана),
+    // мы заставляем ниндзю "упасть", что моментально вызовет смерть и респавн
+    if (mPlayer.state() == Player::State::OnBalloon && mCurrentBalloon == nullptr) {
+        mPlayer.startFalling();
+    }
+
     mPlayer.update(dt);
 
     if (mCurrentBalloon && mPlayer.state() == Player::State::OnBalloon) {
         mPlayer.setBalloonPosition(mCurrentBalloon->position());
-        if (mCurrentBalloon->state() == Balloon::State::Done) {
-            mPlayer.startFalling();
-            mCurrentBalloon = nullptr;
-        }
     }
 
-    // <-- ИСПРАВЛЕНИЕ 2: Безопасное воскрешение
     if (mPlayer.needsRespawn()) {
         Balloon* nextB = mBalloons.nextAvailableBalloon(mPlayer.position().x);
         
         if (!nextB) {
-            // Если мы умерли, а шаров впереди нет, создаем "спасательный" шар
             mBalloons.forceSpawnBalloonAt(mPlayer.position().x + 200.f);
             nextB = mBalloons.nextAvailableBalloon(mPlayer.position().x);
         }
 
         if (nextB) {
             mPlayer.respawnOn(nextB->position());
-            if (mCurrentBalloon) mCurrentBalloon->setState(Balloon::State::Done);
+            
+            if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon)) {
+                mCurrentBalloon->setState(Balloon::State::Done);
+            }
+            
             mCurrentBalloon = nextB; 
+            mIsWaitingForTyping = true; 
+            
         } else {
-            // Резервный выход, если что-то пошло не так
             mState = GameState::GameOver;
         }
     }
@@ -224,6 +243,8 @@ void Game::startGame(GameMode mode) {
     
     mBalloons.reset(mode == GameMode::Classic);
     mCurrentBalloon = nullptr;
+    mIsWaitingForTyping = false;
+    
     mPlatform.setPosition({PLATFORM_X, PLATFORM_Y});
     mWorldView.setCenter({WINDOW_W / 2.f, WINDOW_H / 2.f});
     mState = GameState::Playing;
@@ -246,6 +267,12 @@ void Game::drawHUD() {
     }
     
     mWindow.draw(makeText("Score: " + std::to_string(mStats.score()), 22, sf::Color::White, WINDOW_W - 110, 25));
+
+    if (mIsWaitingForTyping && mShowCursor) {
+        sf::Text keepTyping = makeText("Keep typing...", 36, sf::Color(255, 80, 80), WINDOW_W / 2.f, 120);
+        keepTyping.setStyle(sf::Text::Style::Bold);
+        mWindow.draw(keepTyping);
+    }
 }
 
 void Game::renderGameOver() {

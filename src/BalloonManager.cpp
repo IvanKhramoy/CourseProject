@@ -87,3 +87,11 @@ void BalloonManager::markTarget(float playerX) {
     Balloon* t = currentTarget(playerX);
     for (auto& b : mBalloons) b->setAsTarget(b.get() == t);
 }
+// +
+bool BalloonManager::isValid(const Balloon* b) const {
+    if (!b) return false;
+    for (const auto& balloon : mBalloons) {
+        if (balloon.get() == b) return true;
+    }
+    return false;
+}

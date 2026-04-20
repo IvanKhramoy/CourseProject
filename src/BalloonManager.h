@@ -23,6 +23,8 @@ public:
 
     int balloonsSpawned() const { return mBalloonsSpawned; }
     bool hasTarget() const;
+    // +
+    bool isValid(const Balloon *b) const;
 
 private:
     void spawnBalloon();
