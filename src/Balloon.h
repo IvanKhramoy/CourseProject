@@ -7,7 +7,7 @@ class Balloon {
 public:
     enum class State { Idle, Falling, Done };
 
-    Balloon(char letter, float x, float fallSpeed, const ResourceManager& rm);
+    Balloon(char letter, float x, float y, float fallSpeed, const ResourceManager& rm);
 
     void update(float dt);
     void draw(sf::RenderWindow& window) const;

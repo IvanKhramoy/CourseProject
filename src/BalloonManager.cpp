@@ -7,12 +7,13 @@
 BalloonManager::~BalloonManager() = default;
 
 BalloonManager::BalloonManager(const ResourceManager& rm)
-    : mRM(rm), mFallSpeed(INITIAL_FALL_SPEED), mNextX(PLATFORM_X + 200.f), mBalloonsSpawned(0), mIsClassicMode(true) {}
+    : mRM(rm), mFallSpeed(INITIAL_FALL_SPEED), mNextX(PLATFORM_X + BALLOON_SPACING * 1.5f), mBalloonsSpawned(0), mIsClassicMode(true) {}
 
 void BalloonManager::reset(bool isClassicMode) {
     mBalloons.clear();
     mFallSpeed = INITIAL_FALL_SPEED;
-    mNextX = PLATFORM_X + 200.f;
+    // И здесь тоже заменяем:
+    mNextX = PLATFORM_X + BALLOON_SPACING * 1.5f;
     mBalloonsSpawned = 0;
     mIsClassicMode = isClassicMode;
 }
@@ -22,7 +23,7 @@ void BalloonManager::update(float dt, float cameraRightEdge, float playerX) {
 
     mBalloons.erase(std::remove_if(mBalloons.begin(), mBalloons.end(),
         [&](const auto& b){ 
-            return b->state() == Balloon::State::Done || b->position().x < playerX - 300.f; 
+            return b->state() == Balloon::State::Done || b->position().x < playerX - 800.f; 
         }), mBalloons.end());
 
     while (mNextX < cameraRightEdge + BALLOON_SPACING) {
@@ -61,7 +62,14 @@ Balloon* BalloonManager::nextAvailableBalloon(float playerX) {
 // Экстренный спавн шарика на случай, если игрок умер, а впереди пусто
 void BalloonManager::forceSpawnBalloonAt(float x) {
     char letter = 'a' + (std::rand() % 26);
-    mBalloons.push_back(std::make_unique<Balloon>(letter, x, mFallSpeed, mRM));
+    
+    // То же самое для экстренного шара
+    float randomOffset = static_cast<float>((std::rand() % (BALLOON_Y_VARIATION * 2)) - BALLOON_Y_VARIATION);
+    float spawnY = BALLOON_START_Y + randomOffset;
+    
+    // Передаем spawnY в конструктор
+    mBalloons.push_back(std::make_unique<Balloon>(letter, x, spawnY, mFallSpeed, mRM));
+    
     mNextX = x + BALLOON_SPACING;
 }
 
@@ -78,7 +86,14 @@ bool BalloonManager::hasTarget() const {
 
 void BalloonManager::spawnBalloon() {
     char letter = 'a' + (std::rand() % 26);
-    mBalloons.push_back(std::make_unique<Balloon>(letter, mNextX, mFallSpeed, mRM));
+    
+    // Генерируем случайное отклонение от базовой высоты (от -40 до +40 пикселей)
+    float randomOffset = static_cast<float>((std::rand() % (BALLOON_Y_VARIATION * 2)) - BALLOON_Y_VARIATION);
+    float spawnY = BALLOON_START_Y + randomOffset;
+    
+    // Передаем spawnY в конструктор
+    mBalloons.push_back(std::make_unique<Balloon>(letter, mNextX, spawnY, mFallSpeed, mRM));
+    
     mNextX += BALLOON_SPACING;
     mBalloonsSpawned++;
 }

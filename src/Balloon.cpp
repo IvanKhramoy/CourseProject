@@ -2,18 +2,19 @@
 #include "Constants.h"
 #include "ResourceManager.h"
 
-Balloon::Balloon(char letter, float x, float fallSpeed, const ResourceManager& rm)
+Balloon::Balloon(char letter, float x, float y, float fallSpeed, const ResourceManager& rm)
     : mLetter(letter), mState(State::Idle), mFallSpeed(fallSpeed), mIsTarget(false), mText(rm.font("main")) 
 {
     mShape.setRadius(BALLOON_RADIUS);
     mShape.setOrigin({BALLOON_RADIUS, BALLOON_RADIUS});
-    mShape.setPosition({x, BALLOON_START_Y});
+    // ИСПОЛЬЗУЕМ ПЕРЕДАННЫЙ y ВМЕСТО BALLOON_START_Y
+    mShape.setPosition({x, y}); 
     mShape.setFillColor(randomColor());
     mShape.setOutlineThickness(3.f);
     mShape.setOutlineColor(sf::Color(255, 255, 255, 80));
 
     mText.setString(std::string(1, letter));
-    mText.setCharacterSize(32);
+    mText.setCharacterSize(26);
     mText.setFillColor(sf::Color::White);
     mText.setStyle(sf::Text::Style::Bold);
     centerText();
@@ -30,8 +31,8 @@ void Balloon::update(float dt) {
 
 void Balloon::draw(sf::RenderWindow& window) const {
     if (mIsTarget) {
-        sf::CircleShape glow(BALLOON_RADIUS + 8.f);
-        glow.setOrigin({BALLOON_RADIUS + 8.f, BALLOON_RADIUS + 8.f});
+        sf::CircleShape glow(BALLOON_RADIUS + 6.f); // БЫЛО +8.f
+        glow.setOrigin({BALLOON_RADIUS + 10.f, BALLOON_RADIUS + 10.f});
         glow.setPosition(mShape.getPosition());
         glow.setFillColor(sf::Color(255, 255, 255, 50));
         window.draw(glow);
