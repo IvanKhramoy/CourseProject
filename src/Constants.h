@@ -30,9 +30,24 @@ constexpr float MAX_FALL_SPEED     = 400.f;
 constexpr int   SCORE_PER_HIT      = 10;
 
 namespace Paths {
-    inline const std::string FONT       = "assets/fonts/arial.ttf";
+    inline const std::string FONT          = "assets/fonts/arial.ttf";
+    inline const std::string FONT_RM_300   = "assets/fonts/RobotoMono-300.ttf";
+    inline const std::string FONT_RM_400   = "assets/fonts/RobotoMono-400.ttf";
+    inline const std::string FONT_RM_600   = "assets/fonts/RobotoMono-600.ttf";
+    inline const std::string FONT_RM_700   = "assets/fonts/RobotoMono-700.ttf";
+    inline const std::string FONT_CO_400   = "assets/fonts/ConcertOne-Regular.ttf";
     inline const std::string FONT_FALLBACK = "/System/Library/Fonts/Supplemental/Arial.ttf";
+    // inline const std::string FONT_FALLBACK = "/System/Library/Fonts/Supplemental/Arial.ttf";
+    // inline const std::string FONT_RM_300 = "/System/Library/Fonts/Supplemental/Arial.ttf";
+    // inline const std::string FONT_RM_400 = "/System/Library/Fonts/Supplemental/Arial.ttf";
+    // inline const std::string FONT_RM_600 = "/System/Library/Fonts/Supplemental/Arial.ttf";
+    // inline const std::string FONT_RM_700 = "/System/Library/Fonts";
     inline const std::string BG_TEXTURE    = "assets/textures/Back.png";
+
+    inline const std::string CLIFF_TEXTURE = "assets/textures/Cliff.png";
+
+    inline const std::string BALLOON_PREFIX = "assets/textures/balloon_";
+    constexpr int BALLOON_COLORS_COUNT = 4;
     // inline const std::string FONT       = "../assets/fonts/arial.ttf";
     // inline const std::string FONT_FALLBACK = "/System/Library/Fonts/Supplemental/Arial.ttf";
     // inline const std::string BG_TEXTURE    = "../assets/textures/Back.jpg";

@@ -36,6 +36,8 @@ private:
     // --- НОВЫЕ МЕТОДЫ ДЛЯ МАСШТАБИРОВАНИЯ ---
     void adjustViewports(unsigned int width, unsigned int height);
     void toggleFullscreen();
+
+    float mCenterTextTimer = 0.f;
     
     
     sf::RenderWindow   mWindow;
@@ -50,10 +52,12 @@ private:
     Player             mPlayer;
     
     sf::RectangleShape mPlatform;
+    // sf::Sprite         mCliffSprite; // ++
     Balloon* mCurrentBalloon = nullptr;
     
     // sf::Sprite mBgSprite;
     std::unique_ptr<Background> mBackground;
+    std::unique_ptr<sf::Sprite> mCliffSprite;
     
     sf::Clock          mGameClock;
     sf::Clock          mBlinkClock;

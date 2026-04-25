@@ -1,6 +1,7 @@
 #include "BalloonManager.h"
 #include "Balloon.h"
 #include "Constants.h"
+#include "ResourceManager.h"
 #include <algorithm>
 #include <cstdlib>
 
@@ -60,15 +61,29 @@ Balloon* BalloonManager::nextAvailableBalloon(float playerX) {
 }
 
 // Экстренный спавн шарика на случай, если игрок умер, а впереди пусто
+// void BalloonManager::forceSpawnBalloonAt(float x) {
+//     char letter = 'a' + (std::rand() % 26);
+    
+//     // То же самое для экстренного шара
+//     float randomOffset = static_cast<float>((std::rand() % (BALLOON_Y_VARIATION * 2)) - BALLOON_Y_VARIATION);
+//     float spawnY = BALLOON_START_Y + randomOffset;
+    
+//     // Передаем spawnY в конструктор
+//     mBalloons.push_back(std::make_unique<Balloon>(letter, x, spawnY, mFallSpeed, mRM));
+    
+//     mNextX = x + BALLOON_SPACING;
+// }
+
 void BalloonManager::forceSpawnBalloonAt(float x) {
     char letter = 'a' + (std::rand() % 26);
     
-    // То же самое для экстренного шара
+    int colorIndex = std::rand() % Paths::BALLOON_COLORS_COUNT;
+    const sf::Texture& tex = mRM.texture("balloon_" + std::to_string(colorIndex));
+
     float randomOffset = static_cast<float>((std::rand() % (BALLOON_Y_VARIATION * 2)) - BALLOON_Y_VARIATION);
     float spawnY = BALLOON_START_Y + randomOffset;
     
-    // Передаем spawnY в конструктор
-    mBalloons.push_back(std::make_unique<Balloon>(letter, x, spawnY, mFallSpeed, mRM));
+    mBalloons.push_back(std::make_unique<Balloon>(letter, x, spawnY, mFallSpeed, tex, mRM));
     
     mNextX = x + BALLOON_SPACING;
 }
@@ -84,15 +99,32 @@ bool BalloonManager::hasTarget() const {
     return false;
 }
 
+// void BalloonManager::spawnBalloon() {
+//     char letter = 'a' + (std::rand() % 26);
+    
+//     // Генерируем случайное отклонение от базовой высоты (от -40 до +40 пикселей)
+//     float randomOffset = static_cast<float>((std::rand() % (BALLOON_Y_VARIATION * 2)) - BALLOON_Y_VARIATION);
+//     float spawnY = BALLOON_START_Y + randomOffset;
+    
+//     // Передаем spawnY в конструктор
+//     mBalloons.push_back(std::make_unique<Balloon>(letter, mNextX, spawnY, mFallSpeed, mRM));
+    
+//     mNextX += BALLOON_SPACING;
+//     mBalloonsSpawned++;
+// }
+
 void BalloonManager::spawnBalloon() {
     char letter = 'a' + (std::rand() % 26);
     
-    // Генерируем случайное отклонение от базовой высоты (от -40 до +40 пикселей)
+    // Выбираем случайный цвет от 0 до BALLOON_COLORS_COUNT-1
+    int colorIndex = std::rand() % Paths::BALLOON_COLORS_COUNT;
+    const sf::Texture& tex = mRM.texture("balloon_" + std::to_string(colorIndex));
+
     float randomOffset = static_cast<float>((std::rand() % (BALLOON_Y_VARIATION * 2)) - BALLOON_Y_VARIATION);
     float spawnY = BALLOON_START_Y + randomOffset;
     
-    // Передаем spawnY в конструктор
-    mBalloons.push_back(std::make_unique<Balloon>(letter, mNextX, spawnY, mFallSpeed, mRM));
+    // Передаем текстуру
+    mBalloons.push_back(std::make_unique<Balloon>(letter, mNextX, spawnY, mFallSpeed, tex, mRM));
     
     mNextX += BALLOON_SPACING;
     mBalloonsSpawned++;
