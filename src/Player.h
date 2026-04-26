@@ -1,11 +1,16 @@
 #pragma once
 #include <SFML/Graphics.hpp>
+#include <memory>
+#include <cmath>
+#include "Constants.h"
+#include "ResourceManager.h"
 
 class Player {
 public:
     enum class State { OnPlatform, Jumping, OnBalloon, Falling, Respawning };
 
-    Player();
+    // Теперь игрок принимает менеджер ресурсов
+    explicit Player(const ResourceManager& rm);
 
     void reset(int startingLives);
     void update(float dt);
@@ -22,13 +27,21 @@ public:
     bool isAlive() const { return mLives > 0; }
     bool needsRespawn() const { return mState == State::Respawning; }
 
+    void loseLife() { if (mLives > 0) mLives--; }
+
 private:
-    sf::RectangleShape mShape;
+    void updateAnimation(float dt);
+    void setNinjaTexture(const std::string& textureId);
+
+    const ResourceManager& mRM;
+    std::unique_ptr<sf::Sprite> mSprite; // Спрайт ниндзя
+    
     sf::Vector2f mPos;
     sf::Vector2f mStart;
     sf::Vector2f mTarget;
-    State mState;
-    int mLives;
-    float mJumpTimer;
-    float mFallSpeed;
+    State        mState;
+    int          mLives;
+    float        mJumpTimer;
+    float        mFallSpeed;
+    float        mAnimTimer; // Таймер для дыхания и раскачивания
 };

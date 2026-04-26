@@ -18,8 +18,26 @@ void ResourceManager::loadTexture(const std::string& id, const std::string& path
     mTextures[id] = std::move(tex);
 }
 
+// const sf::Texture& ResourceManager::texture(const std::string& id) const {
+//     return mTextures.at(id);
+// }
+
 const sf::Texture& ResourceManager::texture(const std::string& id) const {
-    return mTextures.at(id);
+    auto it = mTextures.find(id);
+    if (it == mTextures.end()) {
+        // ВМЕСТО ВЫЛЕТА МЫ ПИШЕМ ЭТО:
+        printf("\n[!!!] CRITICAL: Texture '%s' is missing!\n", id.c_str());
+        printf("[!!!] Check your 'assets/textures' folder and naming.\n");
+
+        // Пытаемся вернуть хоть что-то, чтобы игра не упала
+        if (!mTextures.empty()) {
+            return mTextures.begin()->second; 
+        }
+        
+        // Если вообще ничего нет, тогда только вылет
+        throw std::runtime_error("No textures loaded at all. Missing: " + id);
+    }
+    return it->second;
 }
 
 bool ResourceManager::hasTexture(const std::string& id) const {

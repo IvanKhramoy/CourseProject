@@ -21,6 +21,8 @@ public:
     void forceSpawnBalloonAt(float x); // <-- Исправление: экстренный спавн
     void increaseSpeed();
 
+    Balloon* spawnRespawnPlatform(float x, float y,  const sf::Texture& tex);    
+
     int balloonsSpawned() const { return mBalloonsSpawned; }
     bool hasTarget() const;
     // +

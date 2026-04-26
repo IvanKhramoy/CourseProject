@@ -25,10 +25,10 @@ Balloon::Balloon(char letter, float x, float y, float fallSpeed, const sf::Textu
     mText.setFont(rm.font("main")); 
 
     // 2. Делаем шрифт очень крупным (чтобы был четким)'
-    mText.setCharacterSize(72); 
+    mText.setCharacterSize(80); 
 
     // 3. Сжимаем его визуально в 3 раза (метод сверхвысокой четкости)
-    mText.setScale({0.35f, 0.35f}); 
+    mText.setScale({0.38f, 0.38f}); 
 
     mText.setFillColor(sf::Color::White);
     mText.setStyle(sf::Text::Style::Bold);
@@ -53,6 +53,7 @@ void Balloon::update(float dt) {
 }
 
 void Balloon::draw(sf::RenderWindow& window) const {
+    if (mState == State::Done) return;
     if (mIsTarget) {
         // Оставляем небольшое круглое свечение позади шара-цели
         sf::CircleShape glow(BALLOON_RADIUS + 6.f);
