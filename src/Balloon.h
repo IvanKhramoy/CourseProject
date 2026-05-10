@@ -17,7 +17,7 @@ public:
     Balloon(char letter, float x, float y, float fallSpeed, const sf::Texture &texture, const ResourceManager &rm);
 
     void update(float dt);
-    void draw(sf::RenderWindow &window) const;
+    void draw(sf::RenderWindow &window);
 
     void startFalling();
     void setState(State s);
@@ -45,5 +45,11 @@ private:
 
     sf::Sprite mSprite; // Спрайт картинки
     sf::Text mText;
+
+    // sf::CircleShape mGlow;     // Вместо спрайта свечения
+    sf::VertexArray mGlow;
+    sf::ConvexShape mArrowL;   // Левая стрелка
+    sf::ConvexShape mArrowR;   // Правая стрелка
+    float mTargetAnimTimer = 0.f; // Таймер для пульсации
 };
 

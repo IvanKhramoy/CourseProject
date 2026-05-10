@@ -61,6 +61,8 @@ private:
 
     float mCenterTextTimer = 0.f;
 
+    float mWinDelayTimer = 0.f;
+
     float mLastSafeX = PLATFORM_X;
 
     sf::Vector2f mMousePos;
@@ -86,9 +88,14 @@ private:
     sf::Music mMusicMenu;
     sf::Music mMusicGame;
 
+    std::unique_ptr<sf::Sound> mExplosionSound;
+
+    std::unique_ptr<sf::Sound> mCorrectSound;
+    std::unique_ptr<sf::Sound> mErrorSound;
+
     // Метод для плавного обновления громкости
     void updateMusic(float dt);
-    
+
     // Вспомогательная функция для переключения
     void playStateMusic(GameState state);
 
@@ -102,10 +109,15 @@ private:
 
     std::unique_ptr<sf::Sprite> mMenuBgSprite;
 
+    std::unique_ptr<sf::Sprite> mEndCliffSprite;
+    bool mShowEndCliff = false;
+
     sf::Clock mGameClock;
     sf::Clock mBlinkClock;
     bool mShowCursor = true;
     bool mIsWaitingForTyping = false;
+
+    float mFinalWaitTimer = 0.f;
 
     // Флаг полноэкранного режима
     bool mIsFullscreen = false;

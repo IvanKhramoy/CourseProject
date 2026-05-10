@@ -123,6 +123,26 @@ Game::Game()
 
     try
     {
+        mRM.loadTexture("end_cliff", Paths::END_CLIFF_TEXTURE);
+        mEndCliffSprite = std::make_unique<sf::Sprite>(mRM.texture("end_cliff"));
+
+        // Масштаб (подбери под свои нужды, как делали со стартовой скалой)
+        float endScaleX = 0.45f;
+        float endScaleY = 0.5f;
+        mEndCliffSprite->setScale({endScaleX, endScaleY});
+
+        // НАСТРОЙКА ТОЧКИ ПРИВЯЗКИ (Origin)
+        // Ставим X в 0 (левый край картинки),
+        // а Y подбери так, чтобы поверхность скалы совпала с ногами ниндзя
+        mEndCliffSprite->setOrigin({0.f, 0.f});
+    }
+    catch (const std::exception &e)
+    {
+        printf("Error loading end cliff: %s\n", e.what());
+    }
+
+    try
+    {
         mRM.loadTexture("life", Paths::LIFE_TEXTURE);
         // Обязательно включаем сглаживание для такой большой картинки!
         const_cast<sf::Texture &>(mRM.texture("life")).setSmooth(true);
@@ -148,8 +168,8 @@ Game::Game()
         {
             printf("Error loading music: %s\n", path.c_str());
         }
-        music.setLooping(true);  // Музыка должна зацикливаться
-        music.setVolume(0.f); // Начинаем с тишины
+        music.setLooping(true); // Музыка должна зацикливаться
+        music.setVolume(0.f);   // Начинаем с тишины
     };
 
     loadMusic(mMusicMenu, Paths::MUSIC_MENU);
@@ -157,6 +177,38 @@ Game::Game()
 
     // Сразу запускаем музыку меню
     mMusicMenu.play();
+
+    try
+    {
+        mRM.loadSound("explosion_sfx", Paths::SOUND_EXPLOSION);
+
+        // Создаем проигрыватель через make_unique и сразу передаем ему буфер из менеджера
+        mExplosionSound = std::make_unique<sf::Sound>(mRM.sound("explosion_sfx"));
+        mExplosionSound->setVolume(80.f);
+    }
+    catch (const std::exception &e)
+    {
+        printf("Error loading sound: %s\n", e.what());
+    }
+
+    try
+    {
+        // Загружаем буферы в ResourceManager
+        mRM.loadSound("correct_sfx", Paths::SOUND_CORRECT);
+        mRM.loadSound("error_sfx", Paths::SOUND_ERROR);
+
+        // Создаем проигрыватели
+        mCorrectSound = std::make_unique<sf::Sound>(mRM.sound("correct_sfx"));
+        mErrorSound = std::make_unique<sf::Sound>(mRM.sound("error_sfx"));
+
+        // Настраиваем громкость
+        mCorrectSound->setVolume(500.f);
+        mErrorSound->setVolume(1000.f); // Звук ошибки лучше делать чуть тише, чтобы он не пугал
+    }
+    catch (const std::exception &e)
+    {
+        printf("Error loading feedback sounds: %s\n", e.what());
+    }
 
     // +++
     for (int i = 0; i < Paths::BALLOON_COLORS_COUNT; ++i)
@@ -299,6 +351,8 @@ void Game::processEventsPlaying(const sf::Event &event)
                 {
                     if (target->letter() == typed)
                     {
+                        if (mCorrectSound)
+                            mCorrectSound->play();
                         mStats.recordHit();
 
                         if (mIsWaitingForTyping)
@@ -312,7 +366,7 @@ void Game::processEventsPlaying(const sf::Event &event)
                         // ПРОВЕРКА НА ФИНИШ
                         if (mCurrentMode == GameMode::Classic && mStats.hits() >= CLASSIC_TARGET_BALLOONS)
                         {
-                            mIsFinishing = true;
+                            // mIsFinishing = true;
 
                             // Отпускаем текущий шар, если он был
                             if (mCurrentBalloon && mCurrentBalloon != target)
@@ -342,6 +396,15 @@ void Game::processEventsPlaying(const sf::Event &event)
                             mCurrentBalloon = target;
                             mCurrentBalloon->startFalling();
                             mPlayer.jumpTo(target->position());
+                        }
+                    }
+                    else // <--- ВОТ СЮДА НУЖНО ПОСТАВИТЬ ELSE! (Буква НЕВЕРНАЯ)
+                    {
+                        if (!mIsWaitingForTyping)
+                        {
+                            if (mErrorSound)
+                                mErrorSound->play();
+                            mStats.recordMiss();
                         }
                     }
                 }
@@ -432,29 +495,201 @@ void Game::update(float dt)
     }
 }
 
+// void Game::updatePlaying(float dt)
+// {
+//     // --- 1. ПЛАВНАЯ КАМЕРА ---
+//     float currentViewWidth = mWorldView.getSize().x;
+//     // float targetCamX = mPlayer.position().x + currentViewWidth / 6.f;
+//     float targetCamX = mPlayer.position().x + currentViewWidth / 4.f;
+//     targetCamX = std::max(targetCamX, currentViewWidth / 2.f);
+
+//     float interpolationSpeed = 5.0f;
+//     sf::Vector2f currentCenter = mWorldView.getCenter();
+//     float newCamX = currentCenter.x + (targetCamX - currentCenter.x) * interpolationSpeed * dt;
+//     mWorldView.setCenter({newCamX, WINDOW_H / 2.f});
+
+//     // --- 2. ОБНОВЛЕНИЕ ЧАСТИЦ (ВЗРЫВА) ---
+//     // for (auto &p : mParticles)
+//     // {
+//     //     p.pos += p.vel * dt;
+//     //     p.lifetime -= dt;
+//     // }
+//     // mParticles.erase(std::remove_if(mParticles.begin(), mParticles.end(),
+//     //                                 [](const Particle &p)
+//     //                                 { return p.lifetime <= 0; }),
+//     //                  mParticles.end());
+
+//     for (auto &ex : mActiveExplosions)
+//     {
+//         ex.timer += dt;
+//         if (ex.timer >= EXPL_SPEED)
+//         {
+//             ex.timer = 0;
+//             ex.currentFrame++;
+
+//             if (ex.currentFrame < EXPL_FRAMES)
+//             {
+//                 // Сдвигаем "окошко" выбора кадра вправо по картинке
+//                 ex.sprite.setTextureRect(sf::IntRect({ex.currentFrame * EXPL_SIZE, 0}, {EXPL_SIZE, EXPL_SIZE}));
+//             }
+//             else
+//             {
+//                 ex.finished = true; // Анимация закончилась
+//             }
+//         }
+//     }
+//     // Удаляем завершенные взрывы
+//     mActiveExplosions.erase(std::remove_if(mActiveExplosions.begin(), mActiveExplosions.end(),
+//                                            [](const Explosion &ex)
+//                                            { return ex.finished; }),
+//                             mActiveExplosions.end());
+
+//     // --- 3. ЛОГИКА СМЕРТИ И ЗАДЕРЖКИ ПЕРЕД РЕСПАВНОМ ---
+//     if (mIsDeadWaiting)
+//     {
+//         mRespawnTimer -= dt;
+//         if (mRespawnTimer <= 0.f)
+//         {
+//             mIsDeadWaiting = false; // Время вышло, пора воскрешать
+
+//             // Создаем платформу на месте последнего чекпоинта
+//             mCurrentBalloon = mBalloons.spawnRespawnPlatform(mLastSafeX, BALLOON_START_Y, *mLastSafeTexture);
+//             if (mCurrentBalloon)
+//             {
+//                 mPlayer.respawnOn(mCurrentBalloon->position());
+//                 mIsWaitingForTyping = true; // Показываем "Keep typing"
+//             }
+//         }
+//         return; // Пока ждем респавна, остальную логику (шары, прыжки) не крутим
+//     }
+
+//     // --- 4. ОБЫЧНОЕ ОБНОВЛЕНИЕ МИРА ---
+//     float cameraRightEdge = mWorldView.getCenter().x + currentViewWidth / 2.f;
+//     mBalloons.update(dt, cameraRightEdge, mPlayer.position().x);
+
+//     // Безопасность: если текущий шар удален менеджером
+//     if (mCurrentBalloon && !mBalloons.isValid(mCurrentBalloon))
+//     {
+//         mCurrentBalloon = nullptr;
+//     }
+
+//     mPlayer.update(dt);
+
+//     // Логика привязки к шару и ДЕТЕКЦИЯ ПАДЕНИЯ
+//     if (mPlayer.state() == Player::State::OnBalloon && mCurrentBalloon != nullptr)
+//     {
+//         mPlayer.setBalloonPosition(mCurrentBalloon->position());
+
+//         // Если ниндзя скрылся за нижним краем экрана
+//         if (mPlayer.position().y - (PLAYER_HEIGHT / 2.f) > WINDOW_H)
+//         {
+//             mPlayer.loseLife();
+//             if (mExplosionSound)
+//             {
+//                 mExplosionSound->play();
+//             }
+//             mStats.recordMiss();
+
+//             sf::Vector2f explosionPos = mPlayer.position();
+//             if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon))
+//             {
+//                 explosionPos = mCurrentBalloon->position();
+
+//                 // --- 2. УДАЛЯЕМ ШАР МГНОВЕННО ---
+//                 // Он исчезнет из логики, но его "заменит" собой вспышка взрыва
+//                 mCurrentBalloon->setState(Balloon::State::Done);
+//             }
+//             mCurrentBalloon = nullptr;
+//             Explosion ex(mRM.texture("explosion"));
+
+//             // Вырезаем первый кадр (самый левый верхний квадрат)
+//             ex.sprite.setTextureRect(sf::IntRect({0, 0}, {EXPL_SIZE, EXPL_SIZE}));
+
+//             // Центрируем и ставим в место падения
+//             ex.sprite.setOrigin({EXPL_SIZE / 2.f, EXPL_SIZE / 2.f});
+//             // ex.sprite.setPosition({mPlayer.position().x, (float)WINDOW_H - 50.f});
+//             ex.sprite.setPosition(explosionPos);
+
+//             ex.sprite.setScale({2.5f, 2.5f});
+
+//             mActiveExplosions.push_back(ex);
+
+//             if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon))
+//             {
+//                 mCurrentBalloon->setState(Balloon::State::Done);
+//             }
+//             mCurrentBalloon = nullptr;
+//             mIsDeadWaiting = true;
+//             mRespawnTimer = 1.2f;
+//         }
+//     }
+
+//     // --- 5. ФИНАЛЬНЫЙ ПРЫЖОК (ПОБЕДА) ---
+//     if (mWaitingForFinalJump && mPlayer.state() == Player::State::OnBalloon)
+//     {
+//         sf::Vector2f finishPos = {mPlayer.position().x + 300.f, PLATFORM_Y};
+
+//         if (mEndCliffSprite)
+//         {
+//             // Ставим скалу точно в X-координату приземления.
+//             // По Y ставим ту же высоту, что и у стартовой скалы (например, 330)
+//             mEndCliffSprite->setPosition({finishPos.x, 330.f});
+//             mShowEndCliff = true;
+//         }
+
+//         mPlayer.jumpTo(finishPos);
+//         mWaitingForFinalJump = false;
+//         mIsFinishing = true;
+//     }
+
+//     // --- 6. ПРОВЕРКИ СОСТОЯНИЙ ---
+//     if (!mPlayer.isAlive() && !mIsDeadWaiting)
+//     {
+//         mState = GameState::GameOver;
+//         mStats.stopTimer();
+//     }
+
+//     if (mIsFinishing && mPlayer.state() != Player::State::Jumping)
+//     {
+//         mState = GameState::Win;
+//         mStats.stopTimer();
+//     }
+// }
+
 void Game::updatePlaying(float dt)
 {
-    // --- 1. ПЛАВНАЯ КАМЕРА ---
+    // --- 1. ПЛАВНАЯ КАМЕРА С ОГРАНИЧЕНИЕМ ГРАНИЦ ---
     float currentViewWidth = mWorldView.getSize().x;
-    float targetCamX = mPlayer.position().x + currentViewWidth / 6.f;
+
+    // Обычная цель: игрок чуть левее центра
+    float targetCamX = mPlayer.position().x + currentViewWidth / 4.f;
+
+    // ОГРАНИЧЕНИЕ СЛЕВА (Старт)
     targetCamX = std::max(targetCamX, currentViewWidth / 2.f);
 
+    // ОГРАНИЧЕНИЕ СПРАВА (Финиш)
+    // Если мы в классическом режиме и скала уже "поставлена" в startGame
+    if (mCurrentMode == GameMode::Classic && mShowEndCliff)
+    {
+        // Рассчитываем предел: камера должна остановиться так, чтобы
+        // правый край экрана совпадал с правым краем скалы (или чуть дальше)
+        float cliffX = mEndCliffSprite->getPosition().x;
+
+        // maxCamX — это точка, дальше которой центр камеры не пойдет.
+        // Мы хотим, чтобы скала была видна у правого края, поэтому вычитаем половину ширины экрана.
+        // Добавим +150.f, чтобы скала не была "прилеплена" к самому краю, а была видна целиком.
+        float maxCamX = cliffX + 180.f - (currentViewWidth / 2.f);
+
+        targetCamX = std::min(targetCamX, maxCamX);
+    }
+
+    // Плавное догоняние (Lerp)
     float interpolationSpeed = 5.0f;
     sf::Vector2f currentCenter = mWorldView.getCenter();
     float newCamX = currentCenter.x + (targetCamX - currentCenter.x) * interpolationSpeed * dt;
     mWorldView.setCenter({newCamX, WINDOW_H / 2.f});
 
-    // --- 2. ОБНОВЛЕНИЕ ЧАСТИЦ (ВЗРЫВА) ---
-    // for (auto &p : mParticles)
-    // {
-    //     p.pos += p.vel * dt;
-    //     p.lifetime -= dt;
-    // }
-    // mParticles.erase(std::remove_if(mParticles.begin(), mParticles.end(),
-    //                                 [](const Particle &p)
-    //                                 { return p.lifetime <= 0; }),
-    //                  mParticles.end());
-
+    // --- 2. ОБНОВЛЕНИЕ ЧАСТИЦ/ВЗРЫВОВ (Без изменений) ---
     for (auto &ex : mActiveExplosions)
     {
         ex.timer += dt;
@@ -462,131 +697,109 @@ void Game::updatePlaying(float dt)
         {
             ex.timer = 0;
             ex.currentFrame++;
-
             if (ex.currentFrame < EXPL_FRAMES)
-            {
-                // Сдвигаем "окошко" выбора кадра вправо по картинке
                 ex.sprite.setTextureRect(sf::IntRect({ex.currentFrame * EXPL_SIZE, 0}, {EXPL_SIZE, EXPL_SIZE}));
-            }
             else
-            {
-                ex.finished = true; // Анимация закончилась
-            }
+                ex.finished = true;
         }
     }
-    // Удаляем завершенные взрывы
-    mActiveExplosions.erase(std::remove_if(mActiveExplosions.begin(), mActiveExplosions.end(),
-                                           [](const Explosion &ex)
+    mActiveExplosions.erase(std::remove_if(mActiveExplosions.begin(), mActiveExplosions.end(), [](const Explosion &ex)
                                            { return ex.finished; }),
                             mActiveExplosions.end());
 
-    // --- 3. ЛОГИКА СМЕРТИ И ЗАДЕРЖКИ ПЕРЕД РЕСПАВНОМ ---
+    // --- 3. ЛОГИКА СМЕРТИ (Без изменений) ---
     if (mIsDeadWaiting)
     {
         mRespawnTimer -= dt;
         if (mRespawnTimer <= 0.f)
         {
-            mIsDeadWaiting = false; // Время вышло, пора воскрешать
-
-            // Создаем платформу на месте последнего чекпоинта
+            mIsDeadWaiting = false;
             mCurrentBalloon = mBalloons.spawnRespawnPlatform(mLastSafeX, BALLOON_START_Y, *mLastSafeTexture);
             if (mCurrentBalloon)
             {
                 mPlayer.respawnOn(mCurrentBalloon->position());
-                mIsWaitingForTyping = true; // Показываем "Keep typing"
+                mIsWaitingForTyping = true;
             }
         }
-        return; // Пока ждем респавна, остальную логику (шары, прыжки) не крутим
+        return;
     }
 
-    // --- 4. ОБЫЧНОЕ ОБНОВЛЕНИЕ МИРА ---
+    // --- 4. ОБНОВЛЕНИЕ МИРА ---
     float cameraRightEdge = mWorldView.getCenter().x + currentViewWidth / 2.f;
     mBalloons.update(dt, cameraRightEdge, mPlayer.position().x);
 
-    // Безопасность: если текущий шар удален менеджером
     if (mCurrentBalloon && !mBalloons.isValid(mCurrentBalloon))
-    {
         mCurrentBalloon = nullptr;
-    }
 
     mPlayer.update(dt);
 
-    // Логика привязки к шару и ДЕТЕКЦИЯ ПАДЕНИЯ
     if (mPlayer.state() == Player::State::OnBalloon && mCurrentBalloon != nullptr)
     {
         mPlayer.setBalloonPosition(mCurrentBalloon->position());
 
-        // Если ниндзя скрылся за нижним краем экрана
         if (mPlayer.position().y - (PLAYER_HEIGHT / 2.f) > WINDOW_H)
         {
             mPlayer.loseLife();
+            if (mExplosionSound)
+                mExplosionSound->play();
             mStats.recordMiss();
-            // Создаем взрыв в месте падения
-            // for (int i = 0; i < 20; ++i)
-            // {
-            //     float angle = static_cast<float>(std::rand() % 360) * 3.14159f / 180.f;
-            //     float speed = static_cast<float>(std::rand() % 200 + 50);
-            //     mParticles.push_back({
-            //         {mPlayer.position().x, (float)WINDOW_H},             // Позиция взрыва (низ экрана)
-            //         {std::cos(angle) * speed, -std::sin(angle) * speed}, // Скорость вверх и в бока
-            //         0.8f                                                 // Время жизни частицы
-            //     });
-            // }
 
-            // if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon))
-            // {
-            //     // Переводим шар в состояние "Готово", чтобы менеджер его удалил в этом же кадре
-            //     mCurrentBalloon->setState(Balloon::State::Done);
-            // }
-
-            // // mPlayer.startFalling(); // Отнимаем жизнь внутри Player
-            // mCurrentBalloon = nullptr;
-            // mIsDeadWaiting = true; // Включаем ожидание
-            // mRespawnTimer = 1.2f;  // Пауза 1.2 секунды на созерцание взрыва
-
-            // Explosion ex;
-            // ex.sprite.setTexture(mRM.texture("explosion"));
             sf::Vector2f explosionPos = mPlayer.position();
-            if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon))
+            if (mCurrentBalloon)
             {
                 explosionPos = mCurrentBalloon->position();
-
-                // --- 2. УДАЛЯЕМ ШАР МГНОВЕННО ---
-                // Он исчезнет из логики, но его "заменит" собой вспышка взрыва
                 mCurrentBalloon->setState(Balloon::State::Done);
             }
             mCurrentBalloon = nullptr;
+
             Explosion ex(mRM.texture("explosion"));
-
-            // Вырезаем первый кадр (самый левый верхний квадрат)
             ex.sprite.setTextureRect(sf::IntRect({0, 0}, {EXPL_SIZE, EXPL_SIZE}));
-
-            // Центрируем и ставим в место падения
             ex.sprite.setOrigin({EXPL_SIZE / 2.f, EXPL_SIZE / 2.f});
-            // ex.sprite.setPosition({mPlayer.position().x, (float)WINDOW_H - 50.f});
             ex.sprite.setPosition(explosionPos);
-
             ex.sprite.setScale({2.5f, 2.5f});
-
             mActiveExplosions.push_back(ex);
 
-            if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon))
-            {
-                mCurrentBalloon->setState(Balloon::State::Done);
-            }
-            mCurrentBalloon = nullptr;
             mIsDeadWaiting = true;
             mRespawnTimer = 1.2f;
         }
     }
 
-    // --- 5. ФИНАЛЬНЫЙ ПРЫЖОК (ПОБЕДА) ---
+    // --- 5. ФИНАЛЬНЫЙ ПРЫЖОК (Прыгаем на уже существующую скалу) ---
+    // if (mWaitingForFinalJump && mPlayer.state() == Player::State::OnBalloon)
+    // {
+    //     // Теперь мы не "создаем" координаты финиша, а берем их у скалы
+    //     // которую мы заранее поставили в startGame
+    //     if (mEndCliffSprite)
+    //     {
+    //         // Прыгаем ровно в точку, где стоит скала (с учетом высоты земли)
+    //         sf::Vector2f finishPos = { mEndCliffSprite->getPosition().x, PLATFORM_Y };
+    //         mPlayer.jumpTo(finishPos);
+    //     }
+
+    //     mWaitingForFinalJump = false;
+    //     mIsFinishing = true;
+    // }
+
     if (mWaitingForFinalJump && mPlayer.state() == Player::State::OnBalloon)
     {
-        sf::Vector2f finishPos = {mPlayer.position().x + 300.f, PLATFORM_Y};
-        mPlayer.jumpTo(finishPos);
-        mWaitingForFinalJump = false;
-        mIsFinishing = true;
+        // Увеличиваем таймер ожидания
+        mFinalWaitTimer += dt;
+
+        // Ждем, например, 0.8 секунды (можно поменять на 1.0f для большей паузы)
+        if (mFinalWaitTimer >= 0.8f)
+        {
+            if (mEndCliffSprite)
+            {
+                // Прыгаем на скалу (теперь этот прыжок тоже будет по дуге!)
+                sf::Vector2f finishPos = {mEndCliffSprite->getPosition().x + 115.f, PLATFORM_Y - 145.f};
+                mPlayer.setFinalJump(true); 
+                mPlayer.jumpTo(finishPos);
+            }
+
+            mWaitingForFinalJump = false;
+            mIsFinishing = true;
+            mFinalWaitTimer = 0.f; // Сбрасываем для следующего раза
+        }
     }
 
     // --- 6. ПРОВЕРКИ СОСТОЯНИЙ ---
@@ -596,10 +809,35 @@ void Game::updatePlaying(float dt)
         mStats.stopTimer();
     }
 
-    if (mIsFinishing && mPlayer.state() != Player::State::Jumping)
+    // if (mIsFinishing && mPlayer.state() != Player::State::Jumping)
+    // {
+    //     mState = GameState::Win;
+    //     mStats.stopTimer();
+    // }
+    // if (mIsFinishing) 
+    // {
+    //     // Ждем, пока ниндзя физически приземлится на скалу (состояние перестанет быть Jumping)
+    //     if (mPlayer.state() != Player::State::Jumping) 
+    //     {
+    //         mState = GameState::Win;
+    //         mStats.stopTimer();
+    //     }
+    // }
+    if (mIsFinishing) 
     {
-        mState = GameState::Win;
-        mStats.stopTimer();
+        // Проверяем: если ниндзя закончил прыжок и уже стоит на платформе
+        if (mPlayer.state() == Player::State::OnPlatform) 
+        {
+            // Начинаем отсчет 1.5 секунд
+            mWinDelayTimer += dt;
+
+            if (mWinDelayTimer >= 1.f) 
+            {
+                mState = GameState::Win;
+                mStats.stopTimer();
+                mWinDelayTimer = 0.f; // Сброс
+            }
+        }
     }
 }
 
@@ -637,30 +875,39 @@ sf::Text Game::makeText(const std::string &str, unsigned int size, sf::Color col
     return text;
 }
 
-void Game::updateMusic(float dt) {
-    const float fadeSpeed = 100.f / 0.7f; 
+void Game::updateMusic(float dt)
+{
+    const float fadeSpeed = 100.f / 0.7f;
 
     // --- ЛОГИКА ОБЪЕДИНЕНИЯ ---
     // Целевая громкость UI-музыки = 100, если мы в Меню ИЛИ в Результатах (GameOver/Win)
-    float targetUI = (mState == GameState::Menu || 
-                      mState == GameState::GameOver || 
-                      mState == GameState::Win) ? 100.f : 0.f;
+    float targetUI = (mState == GameState::Menu ||
+                      mState == GameState::GameOver ||
+                      mState == GameState::Win)
+                         ? 100.f
+                         : 0.f;
 
     // Целевая громкость игры = 100 только во время игры
     float targetGame = (mState == GameState::Playing) ? 100.f : 0.f;
 
-    auto fade = [&](sf::Music& music, float target) {
+    auto fade = [&](sf::Music &music, float target)
+    {
         float current = music.getVolume();
-        if (current < target) {
+        if (current < target)
+        {
             music.setVolume(std::min(target, current + fadeSpeed * dt));
-            if (music.getStatus() != sf::Music::Status::Playing) music.play();
-        } else if (current > target) {
+            if (music.getStatus() != sf::Music::Status::Playing)
+                music.play();
+        }
+        else if (current > target)
+        {
             music.setVolume(std::max(target, current - fadeSpeed * dt));
-            if (music.getVolume() == 0.f) music.pause();
+            if (music.getVolume() == 0.f)
+                music.pause();
         }
     };
 
-    fade(mMusicMenu,   targetUI);
+    fade(mMusicMenu, targetUI);
     fade(mMusicGame, targetGame);
 }
 
@@ -760,24 +1007,81 @@ void Game::renderMenu()
     }
 }
 
+// void Game::startGame(GameMode mode)
+// {
+//     mCurrentMode = mode;
+//     mStats.reset();
+
+//     int startLives = (mode == GameMode::Classic) ? CLASSIC_LIVES : ENDLESS_LIVES;
+//     mPlayer.reset(startLives);
+
+//     mBalloons.reset(mode == GameMode::Classic);
+//     mCurrentBalloon = nullptr;
+//     mIsWaitingForTyping = false;
+
+//     mLastSafeTexture = &mRM.texture("balloon_0");
+
+//     mPlatform.setPosition({PLATFORM_X, PLATFORM_Y});
+//     mWorldView.setCenter({mWorldView.getSize().x / 2.f, WINDOW_H / 2.f}); // Учитываем новую ширину
+//     mIsFinishing = false;
+//     mShowEndCliff = false;
+//     mWaitingForFinalJump = false;
+//     mState = GameState::Playing;
+// }
+
 void Game::startGame(GameMode mode)
 {
     mCurrentMode = mode;
     mStats.reset();
+    mFinalWaitTimer = 0.f;
 
+    // 1. Сброс игрока и чекпоинтов
     int startLives = (mode == GameMode::Classic) ? CLASSIC_LIVES : ENDLESS_LIVES;
     mPlayer.reset(startLives);
 
+    mLastSafeX = PLATFORM_X; // Сбрасываем чекпоинт на начальную платформу
+    mLastSafeTexture = &mRM.texture("balloon_0");
+
+    // 2. Сброс менеджера шаров
     mBalloons.reset(mode == GameMode::Classic);
     mCurrentBalloon = nullptr;
     mIsWaitingForTyping = false;
 
-    mLastSafeTexture = &mRM.texture("balloon_0");
-
+    // 3. Настройка камеры и платформы
     mPlatform.setPosition({PLATFORM_X, PLATFORM_Y});
-    mWorldView.setCenter({mWorldView.getSize().x / 2.f, WINDOW_H / 2.f}); // Учитываем новую ширину
+    // Мгновенно ставим камеру в начало, чтобы не было рывка
+    mWorldView.setCenter({mWorldView.getSize().x / 2.f, WINDOW_H / 2.f});
+
+    // 4. ЛОГИКА ФИНАЛЬНОЙ СКАЛЫ (Только для Classic Mode)
+    if (mCurrentMode == GameMode::Classic)
+    {
+        // Рассчитываем, где физически будет находиться последний шар
+        // Логика спавна: PLATFORM_X + SPACING * 1.5 (первый) + (N-1) * SPACING
+        float firstBalloonX = PLATFORM_X + BALLOON_SPACING * 1.5f;
+        float lastBalloonX = firstBalloonX + (CLASSIC_TARGET_BALLOONS - 1) * BALLOON_SPACING;
+
+        // Ставим скалу через 250 пикселей ПОСЛЕ последнего шара
+        float endCliffX = lastBalloonX + 200.f;
+
+        if (mEndCliffSprite)
+        {
+            // Устанавливаем позицию скалы.
+            // 330.f - это высота (подбери её вручную, если ниндзя парит или тонет)
+            mEndCliffSprite->setPosition({endCliffX, 330.f});
+            mShowEndCliff = true; // Показываем скалу сразу, она "ждет" в конце уровня
+        }
+    }
+    else
+    {
+        // В бесконечном режиме скалы не существует
+        mShowEndCliff = false;
+    }
+
+    // 5. Сброс флагов финала
+    mWinDelayTimer = 0.f;
     mIsFinishing = false;
     mWaitingForFinalJump = false;
+
     mState = GameState::Playing;
 }
 
@@ -794,6 +1098,10 @@ void Game::renderPlaying()
     if (mCliffSprite)
     {
         mWindow.draw(*mCliffSprite);
+    }
+    if (mShowEndCliff && mEndCliffSprite)
+    {
+        mWindow.draw(*mEndCliffSprite);
     }
     mWindow.draw(mPlatform);
     mBalloons.draw(mWindow);

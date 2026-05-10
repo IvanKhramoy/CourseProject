@@ -16,6 +16,7 @@ void Player::reset(int startingLives)
     mJumpTimer = 0.f;
     mFallSpeed = 0.f;
     mAnimTimer = 0.f;
+    mIsFinalJump = false;
 
     // updateAnimation(0.f); // Загружаем первую картинку
 }
@@ -24,6 +25,19 @@ void Player::update(float dt)
 {
     switch (mState)
     {
+        // case State::Jumping:
+        //     mJumpTimer += dt;
+        //     {
+        //         float t = mJumpTimer / JUMP_DURATION;
+        //         if (t >= 1.f)
+        //         {
+        //             t = 1.f;
+        //             mState = State::OnBalloon;
+        //         }
+        //         mPos = mStart + (mTarget - mStart) * t;
+        //     }
+        //     break;
+
     case State::Jumping:
         mJumpTimer += dt;
         {
@@ -31,9 +45,28 @@ void Player::update(float dt)
             if (t >= 1.f)
             {
                 t = 1.f;
-                mState = State::OnBalloon;
+                if (mIsFinalJump)
+                {
+                    mState = State::OnPlatform;
+                }
+                else
+                {
+                    mState = State::OnBalloon;
+                }
             }
+
+            // 1. Линейная часть (движение из А в Б)
             mPos = mStart + (mTarget - mStart) * t;
+
+            // 2. ПАРАБОЛИЧЕСКАЯ ЧАСТЬ (Арка)
+            // Чем больше число (например, 100.f), тем выше прыгает ниндзя.
+            float arcHeight = 120.f;
+
+            // Математика: sin(0) = 0, sin(pi/2) = 1 (пик), sin(pi) = 0
+            // Это создает идеальный горб прыжка
+            float offset = std::sin(t * 3.14159f) * arcHeight;
+
+            mPos.y -= offset; // Вычитаем, так как Y в SFML растет вниз
         }
         break;
 
@@ -62,8 +95,9 @@ void Player::update(float dt)
 
 void Player::draw(sf::RenderWindow &window) const
 {
-    if (mSprite && mState != State::Respawning) {
-        window.draw(*mSprite); 
+    if (mSprite && mState != State::Respawning)
+    {
+        window.draw(*mSprite);
     }
 }
 
@@ -108,6 +142,28 @@ void Player::updateAnimation(float dt)
     {
         // Сброс трансформаций перед применением новых
         mSprite->setRotation(sf::degrees(0.f));
+
+        float perspectiveScale = 1.0f;
+
+        if (mIsFinalJump)
+        {
+            float t = mJumpTimer / JUMP_DURATION;
+            // Уменьшаем на 25% (с 1.0 до 0.75). Можешь менять 0.25f для силы эффекта.
+            float shrinkStrength = 0.25f;
+
+            if (mState == State::Jumping)
+            {
+                perspectiveScale = 1.0f - (shrinkStrength * t);
+            }
+            else
+            {
+                // Если уже приземлился на финальную скалу, фиксируем уменьшенный размер
+                perspectiveScale = 1.0f - shrinkStrength;
+            }
+        }
+
+        mSprite->setScale({mSprite->getScale().x * perspectiveScale,
+                           mSprite->getScale().y * perspectiveScale});
 
         if (mState == State::OnPlatform)
         {

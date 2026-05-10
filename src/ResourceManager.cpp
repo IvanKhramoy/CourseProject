@@ -43,3 +43,14 @@ const sf::Texture& ResourceManager::texture(const std::string& id) const {
 bool ResourceManager::hasTexture(const std::string& id) const {
     return mTextures.count(id) > 0;
 }
+
+void ResourceManager::loadSound(const std::string& id, const std::string& path) {
+    sf::SoundBuffer buffer;
+    if (!buffer.loadFromFile(path))
+        throw std::runtime_error("Cannot load sound: " + path);
+    mSounds[id] = std::move(buffer);
+}
+
+const sf::SoundBuffer& ResourceManager::sound(const std::string& id) const {
+    return mSounds.at(id);
+}

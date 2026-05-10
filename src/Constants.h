@@ -41,7 +41,13 @@ namespace Paths {
     inline const std::string MUSIC_MENU   = "assets/sounds/Menu_theme.mp3";
     inline const std::string MUSIC_GAME   = "assets/sounds/Main_theme.mp3";
     inline const std::string MUSIC_RESULT = "assets/sounds/Menu_theme.mp3";
+
+    inline const std::string SOUND_CORRECT = "assets/sounds/typing.wav";
+    inline const std::string SOUND_ERROR   = "assets/sounds/wrong.wav";
+
+    inline const std::string SOUND_EXPLOSION = "assets/sounds/balloon.wav";
     
+
     inline const std::string FONT_FALLBACK = "/System/Library/Fonts/Supplemental/Arial.ttf";
     inline const std::string EXPLOSION_TEXTURE = "assets/textures/explosion.png";
     inline const std::string LIFE_TEXTURE = "assets/textures/avatar.png";
@@ -51,6 +57,7 @@ namespace Paths {
     inline const std::string MENU_BG_TEXTURE    = "assets/textures/menu_background.jpg";
 
     inline const std::string CLIFF_TEXTURE = "assets/textures/Cliff.png";
+    inline const std::string END_CLIFF_TEXTURE = "assets/textures/final_cliff.png";
 
     inline const std::string BALLOON_PREFIX = "assets/textures/balloon_";
 
