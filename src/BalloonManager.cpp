@@ -13,7 +13,6 @@ BalloonManager::BalloonManager(const ResourceManager& rm)
 void BalloonManager::reset(bool isClassicMode) {
     mBalloons.clear();
     mFallSpeed = INITIAL_FALL_SPEED;
-    // И здесь тоже заменяем:
     mNextX = PLATFORM_X + BALLOON_SPACING * 1.5f;
     mBalloonsSpawned = 0;
     mIsClassicMode = isClassicMode;

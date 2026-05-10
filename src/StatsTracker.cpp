@@ -13,7 +13,7 @@ void StatsTracker::reset() {
 void StatsTracker::recordHit() {
     mHits++;
     mScore += SCORE_PER_HIT;
-}
+}   
 
 void StatsTracker::recordMiss() {
     mMisses++;
@@ -30,11 +30,16 @@ void StatsTracker::stopTimer() {
 float StatsTracker::accuracy() const {
     int total = mHits + mMisses;
     if (total == 0) return 100.f;
-    return 100.f * mHits / total;
+    return (static_cast<float>(mHits) / static_cast<float>(total)) * 100.f;
 }
 
-float StatsTracker::wpm() const {
+float StatsTracker::cpm() const {
+    // Переводим секунды в минуты
     float minutes = mElapsedTime / 60.f;
+    
+    // Защита от деления на ноль (в самом начале игры)
     if (minutes < 0.0001f) return 0.f;
-    return mHits / minutes;
+    
+    // Делим количество правильных нажатий на время в минутах
+    return static_cast<float>(mHits) / minutes;
 }

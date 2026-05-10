@@ -15,7 +15,7 @@ public:
     float time() const { return mElapsedTime; }
 
     float accuracy() const;
-    float wpm() const;
+    float cpm() const;
 
 private:
     int mScore = 0;

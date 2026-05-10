@@ -8,7 +8,7 @@
 
 Game::Game()
     // Теперь игра по умолчанию запускается в Полный Экран (Fullscreen)
-    : mWindow(sf::VideoMode::getDesktopMode(), "BalloonTyper", sf::Style::Default, sf::State::Fullscreen), mState(GameState::Menu), mCurrentMode(GameMode::Classic), mBalloons(mRM), mPlayer(mRM), mIsFullscreen(true)
+    : mWindow(sf::VideoMode::getDesktopMode(), "BalloonTyper", sf::Style::Default, sf::State::Fullscreen, sf::ContextSettings{0, 0, 16}), mState(GameState::Menu), mCurrentMode(GameMode::Classic), mBalloons(mRM), mPlayer(mRM), mIsFullscreen(true)
 {
     mWindow.setFramerateLimit(FPS_LIMIT);
     std::srand(static_cast<unsigned>(std::time(nullptr)));
@@ -71,6 +71,30 @@ Game::Game()
 
     try
     {
+        mRM.loadTexture("menu_bg", Paths::MENU_BG_TEXTURE);
+        const sf::Texture &bgTex = mRM.texture("menu_bg");
+
+        // Включаем сглаживание, чтобы картинка не была пиксельной
+        const_cast<sf::Texture &>(bgTex).setSmooth(true);
+
+        mMenuBgSprite = std::make_unique<sf::Sprite>(bgTex);
+
+        // Масштабируем так, чтобы фон был чуть больше экрана (на 5%),
+        // чтобы при движении не было видно краев
+        float scale = (static_cast<float>(WINDOW_H) / bgTex.getSize().y) * 1.05f;
+        mMenuBgSprite->setScale({scale, scale});
+
+        // Ставим точку привязки в центр
+        mMenuBgSprite->setOrigin({bgTex.getSize().x / 2.f, 0.f});
+        mMenuBgSprite->setColor(sf::Color(200, 200, 230));
+    }
+    catch (const std::exception &e)
+    {
+        printf("Error loading menu background: %s\n", e.what());
+    }
+
+    try
+    {
         mRM.loadTexture("cliff", Paths::CLIFF_TEXTURE);
         const sf::Texture &cliffTex = mRM.texture("cliff");
 
@@ -118,6 +142,22 @@ Game::Game()
         printf("Error loading counter icon: %s\n", e.what());
     }
 
+    auto loadMusic = [](sf::Music &music, const std::string &path)
+    {
+        if (!music.openFromFile(path))
+        {
+            printf("Error loading music: %s\n", path.c_str());
+        }
+        music.setLooping(true);  // Музыка должна зацикливаться
+        music.setVolume(0.f); // Начинаем с тишины
+    };
+
+    loadMusic(mMusicMenu, Paths::MUSIC_MENU);
+    loadMusic(mMusicGame, Paths::MUSIC_GAME);
+
+    // Сразу запускаем музыку меню
+    mMusicMenu.play();
+
     // +++
     for (int i = 0; i < Paths::BALLOON_COLORS_COUNT; ++i)
     {
@@ -161,6 +201,8 @@ void Game::run()
         if (dt > 0.1f)
             dt = 0.1f;
 
+        mLastDt = dt;
+
         processEvents();
         update(dt);
         render();
@@ -169,10 +211,19 @@ void Game::run()
 
 void Game::processEvents()
 {
+    mIsMouseClicked = false;
     while (const std::optional event = mWindow.pollEvent())
     {
         if (event->is<sf::Event::Closed>())
             mWindow.close();
+
+        if (const auto *mouseBtn = event->getIf<sf::Event::MouseButtonReleased>())
+        {
+            if (mouseBtn->button == sf::Mouse::Button::Left)
+            {
+                mIsMouseClicked = true;
+            }
+        }
 
         // Если пользователь тянет окно мышкой
         if (const auto *resized = event->getIf<sf::Event::Resized>())
@@ -219,17 +270,17 @@ void Game::processEvents()
 
 void Game::processEventsMenu(const sf::Event &event)
 {
-    if (const auto *keyPressed = event.getIf<sf::Event::KeyPressed>())
-    {
-        if (keyPressed->code == sf::Keyboard::Key::Num1)
-        {
-            startGame(GameMode::Classic);
-        }
-        else if (keyPressed->code == sf::Keyboard::Key::Num2)
-        {
-            startGame(GameMode::Endless);
-        }
-    }
+    // if (const auto *keyPressed = event.getIf<sf::Event::KeyPressed>())
+    // {
+    //     if (keyPressed->code == sf::Keyboard::Key::Num1)
+    //     {
+    //         startGame(GameMode::Classic);
+    //     }
+    //     else if (keyPressed->code == sf::Keyboard::Key::Num2)
+    //     {
+    //         startGame(GameMode::Endless);
+    //     }
+    // }
 }
 
 void Game::processEventsPlaying(const sf::Event &event)
@@ -301,17 +352,22 @@ void Game::processEventsPlaying(const sf::Event &event)
 
 void Game::processEventsGameOver(const sf::Event &event)
 {
-    if (const auto *keyPressed = event.getIf<sf::Event::KeyPressed>())
-    {
-        if (keyPressed->code == sf::Keyboard::Key::Enter)
-        {
-            startGame(mCurrentMode);
-        }
-    }
+    // if (const auto *keyPressed = event.getIf<sf::Event::KeyPressed>())
+    // {
+    //     if (keyPressed->code == sf::Keyboard::Key::Enter)
+    //     {
+    //         startGame(mCurrentMode);
+    //     }
+    // }
 }
 
 void Game::update(float dt)
 {
+    // --- ПОЛУЧАЕМ КООРДИНАТЫ МЫШКИ ---
+    // mapPixelToCoords переводит пиксели экрана в координаты нашего интерфейса (hudView)
+    sf::Vector2i pixelPos = sf::Mouse::getPosition(mWindow);
+    mMousePos = mWindow.mapPixelToCoords(pixelPos, mHudView);
+
     if (mBlinkClock.getElapsedTime().asSeconds() > 0.5f)
     {
         mShowCursor = !mShowCursor;
@@ -327,7 +383,7 @@ void Game::update(float dt)
     {
         updatePlaying(dt);
     }
-
+    mMenuAnimTimer += dt;
     //
     mCenterTextTimer += dt;
     if (mCenterTextTimer >= 3.0f)
@@ -335,10 +391,44 @@ void Game::update(float dt)
         mCenterTextTimer = 0.f; // Сбрасываем цикл каждые 3 секунды
     }
 
+    updateMusic(dt);
+
     if (mState == GameState::Playing)
     {
         mStats.updateTime();
         updatePlaying(dt);
+    }
+
+    if (mState == GameState::Menu)
+    {
+        // 1. Создание (уже есть у тебя)
+        if (std::rand() % 30 == 0)
+        {
+            mParticles.push_back({{static_cast<float>(std::rand() % WINDOW_W), -20.f},
+                                  {static_cast<float>(std::rand() % 20 - 10), 60.f + (std::rand() % 20)},
+                                  8.0f});
+        }
+
+        // 2. ДВИЖЕНИЕ И ОБНОВЛЕНИЕ (Добавь этот кусок!)
+        for (auto &p : mParticles)
+        {
+            // Легкое покачивание влево-вправо (эффект ветра)
+            p.pos.x += std::sin(mMenuAnimTimer + p.pos.y * 0.01f) * 0.5f;
+            p.pos += p.vel * dt; // Падение вниз
+            p.lifetime -= dt;    // Уменьшение времени жизни
+        }
+
+        // 3. УДАЛЕНИЕ "мертвых" частиц
+        mParticles.erase(std::remove_if(mParticles.begin(), mParticles.end(),
+                                        [](const Particle &p)
+                                        { return p.lifetime <= 0; }),
+                         mParticles.end());
+    }
+    else
+    {
+        // Очистка списка при выходе из меню в игру
+        if (!mParticles.empty())
+            mParticles.clear();
     }
 }
 
@@ -430,6 +520,7 @@ void Game::updatePlaying(float dt)
         if (mPlayer.position().y - (PLAYER_HEIGHT / 2.f) > WINDOW_H)
         {
             mPlayer.loseLife();
+            mStats.recordMiss();
             // Создаем взрыв в месте падения
             // for (int i = 0; i < 20; ++i)
             // {
@@ -475,12 +566,10 @@ void Game::updatePlaying(float dt)
             // ex.sprite.setPosition({mPlayer.position().x, (float)WINDOW_H - 50.f});
             ex.sprite.setPosition(explosionPos);
 
-            // Можно немного увеличить взрыв, если он мелкий
             ex.sprite.setScale({2.5f, 2.5f});
 
             mActiveExplosions.push_back(ex);
 
-            // Логика смерти (как была)
             if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon))
             {
                 mCurrentBalloon->setState(Balloon::State::Done);
@@ -516,7 +605,7 @@ void Game::updatePlaying(float dt)
 
 void Game::render()
 {
-    mWindow.clear(sf::Color(30, 30, 40));
+    mWindow.clear(sf::Color(61, 94, 135));
 
     if (mState == GameState::Playing)
     {
@@ -548,17 +637,127 @@ sf::Text Game::makeText(const std::string &str, unsigned int size, sf::Color col
     return text;
 }
 
+void Game::updateMusic(float dt) {
+    const float fadeSpeed = 100.f / 0.7f; 
+
+    // --- ЛОГИКА ОБЪЕДИНЕНИЯ ---
+    // Целевая громкость UI-музыки = 100, если мы в Меню ИЛИ в Результатах (GameOver/Win)
+    float targetUI = (mState == GameState::Menu || 
+                      mState == GameState::GameOver || 
+                      mState == GameState::Win) ? 100.f : 0.f;
+
+    // Целевая громкость игры = 100 только во время игры
+    float targetGame = (mState == GameState::Playing) ? 100.f : 0.f;
+
+    auto fade = [&](sf::Music& music, float target) {
+        float current = music.getVolume();
+        if (current < target) {
+            music.setVolume(std::min(target, current + fadeSpeed * dt));
+            if (music.getStatus() != sf::Music::Status::Playing) music.play();
+        } else if (current > target) {
+            music.setVolume(std::max(target, current - fadeSpeed * dt));
+            if (music.getVolume() == 0.f) music.pause();
+        }
+    };
+
+    fade(mMusicMenu,   targetUI);
+    fade(mMusicGame, targetGame);
+}
+
 void Game::renderMenu()
 {
-    float cx = mHudView.getSize().x / 2.f; // Центруем по динамической ширине
 
-    auto title = makeText("BalloonTyper", 52, sf::Color(255, 210, 80), cx, 160);
+    mWindow.clear(sf::Color(20, 20, 30));
+
+    // 2. Рисуем фон
+    if (mMenuBgSprite)
+    {
+        // --- ПАРАЛЛАКС ОТ МЫШИ ---
+        // Вычисляем, насколько мышка отклонилась от центра экрана
+        sf::Vector2f mouseNormalized = {
+            (mMousePos.x - mHudView.getSize().x / 2.f) / (mHudView.getSize().x / 2.f),
+            (mMousePos.y - mHudView.getSize().y / 2.f) / (mHudView.getSize().y / 2.f)};
+
+        // Цель смещения (например, 30 пикселей в каждую сторону)
+        sf::Vector2f targetOffset = {-mouseNormalized.x * 15.f, -mouseNormalized.y * 10.f};
+
+        // Плавная интерполяция (Lerp) к цели
+        mBgOffset += (targetOffset - mBgOffset) * 2.0f * mLastDt;
+
+        // --- ПЛАВАЮЩИЙ ЭФФЕКТ (Твой код с синусом + параллакс) ---
+        float panX = (mHudView.getSize().x / 2.f) + std::sin(mMenuAnimTimer * 0.5f) * 10.f;
+
+        // Применяем и синус-панорамирование, и параллакс от мыши
+        mMenuBgSprite->setPosition({panX + mBgOffset.x, mBgOffset.y});
+
+        mWindow.draw(*mMenuBgSprite);
+    }
+
+    for (const auto &p : mParticles)
+    {
+        sf::CircleShape petal(3.f); // Базовый круг радиусом 3 пикселя
+
+        // Делаем из круга овал (растягиваем по ширине в 1.5 раза)
+        petal.setScale({1.5f, 1.0f});
+
+        petal.setPosition(p.pos);
+        petal.setRotation(sf::degrees(p.pos.y * 0.4f));
+
+        // Цвет сакуры (сделал чуть прозрачнее — 180 вместо 200 для нежности)
+        sf::Color sakura(255, 190, 210, static_cast<int>(180 * (p.lifetime / 8.0f)));
+        petal.setFillColor(sakura);
+
+        mWindow.draw(petal);
+    }
+
+    // 3. Заголовок и кнопки (твой дизайн)
+    float cx = mHudView.getSize().x / 2.f;
+
+    // --- ЗАГОЛОВОК "NINJA TYPING" (С Retina-трюком) ---
+    float titleY = 200.f + std::sin(mCenterTextTimer * 1.0f) * 4.f;
+
+    sf::Text title = makeText("Ninja Typing", 160, sf::Color::White, cx, titleY);
+
+    // ВОТ ЗДЕСЬ ЗАДАЕТСЯ ШРИФТ ДЛЯ ЗАГОЛОВКА (Можешь поменять "title" на любой другой из твоего списка)
+    title.setFont(mRM.font("bold"));
     title.setStyle(sf::Text::Style::Bold);
+    title.setLetterSpacing(0.7f);
+    title.setScale({0.5f, 0.5f}); // Сжимаем огромный шрифт для идеальной четкости
+
+    // Тень заголовка
+    sf::FloatRect b = title.getLocalBounds();
+    title.setOrigin({b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f});
+
+    sf::Text shadow = title;
+    shadow.setFillColor(sf::Color(0, 0, 0, 150));
+    shadow.move({4.f, 4.f});
+
+    mWindow.draw(shadow);
     mWindow.draw(title);
 
-    mWindow.draw(makeText("Press 1: Classic Mode (50 Balloons, 2 Lives)", 24, sf::Color(100, 220, 160), cx, 280));
-    mWindow.draw(makeText("Press 2: Endless Mode (Infinite, 1 Life)", 24, sf::Color(220, 100, 160), cx, 340));
-    mWindow.draw(makeText("Press ESC to exit", 18, sf::Color(160, 160, 180), cx, 420));
+    // --- КНОПКИ ---
+    // Синие кнопки для режимов
+    sf::Color greenBtn(90, 215, 151, 70);
+    sf::Color goldenOutline(255, 195, 43, 200); // Темно-синий контур
+
+    sf::Color whiteBtn(255, 255, 255, 70);
+    sf::Color exitOutline(180, 180, 180); // Серый контур для белой кнопки
+
+    if (drawButton("Classic Mode", cx, 360.f, 260.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+    {
+        startGame(GameMode::Classic);
+    }
+
+    if (drawButton("Endless Mode", cx, 430.f, 260.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+    {
+        startGame(GameMode::Endless);
+    }
+
+    // Белая кнопка выхода (с темным текстом)
+    if (drawButton("Exit", cx, 520.f, 180.f, 50.f, whiteBtn, sf::Color(255, 255, 255), exitOutline))
+    {
+        mWindow.close();
+    }
 }
 
 void Game::startGame(GameMode mode)
@@ -587,6 +786,7 @@ void Game::renderPlaying()
     mWindow.clear(sf::Color(80, 160, 220));
 
     // Рисуем бесконечный фон, передавая позицию камеры и ширину экрана
+    mWindow.setView(mWorldView);
     if (mBackground)
     {
         mBackground->draw(mWindow, mWorldView.getCenter().x, mWorldView.getSize().x);
@@ -599,6 +799,10 @@ void Game::renderPlaying()
     mBalloons.draw(mWindow);
     mPlayer.draw(mWindow);
 
+    for (const auto &ex : mActiveExplosions)
+    {
+        mWindow.draw(ex.sprite);
+    }
     // for (const auto &p : mParticles)
     // {
     //     sf::RectangleShape dot({4.f, 4.f});
@@ -606,10 +810,6 @@ void Game::renderPlaying()
     //     dot.setFillColor(sf::Color(255, 150, 50, static_cast<int>(255 * (p.lifetime / 0.8f))));
     //     mWindow.draw(dot);
     // }
-    for (const auto &ex : mActiveExplosions)
-    {
-        mWindow.draw(ex.sprite);
-    }
 }
 
 void Game::drawHUD()
@@ -618,27 +818,31 @@ void Game::drawHUD()
 
     // --- 1. ГЛОБАЛЬНЫЕ НАСТРОЙКИ ПОЛОЖЕНИЯ (МЕНЬШЕ И ПРАВЕЕ) ---
     // startX — единая левая граница для иконки шара и первого ниндзя
-    float startX = hudW - 130.f; 
+    float startX = hudW - 130.f;
     float currentY = WINDOW_H - 40.f; // Нижняя точка для ряда жизней
 
     // --- 2. РИСУЕМ ИКОНКИ ЖИЗНЕЙ (НИЖНИЙ РЯД, УМЕНЬШЕННЫЙ) ---
     int maxLives = (mCurrentMode == GameMode::Classic) ? CLASSIC_LIVES : ENDLESS_LIVES;
-    for (int i = 0; i < maxLives; ++i) {
-        if (mRM.hasTexture("life")) {
+    for (int i = 0; i < maxLives; ++i)
+    {
+        if (mRM.hasTexture("life"))
+        {
             sf::Sprite s(mRM.texture("life"));
-            
+
             // РАЗМЕР: Высота 24 пикселя (было 32)
             float iconScale = 24.f / s.getLocalBounds().size.y;
             s.setScale({iconScale, iconScale});
-            
+
             // Выравнивание: левый край спрайта привязан к позиции
             s.setOrigin({0.f, s.getLocalBounds().size.y / 2.f});
-            
+
             // Позиция: начинаем ровно с startX, шаг между иконками 32 пикселя
             s.setPosition({startX + (i * 32.f), currentY});
 
-            if (i < mPlayer.lives()) s.setColor(sf::Color::White);
-            else s.setColor(sf::Color(50, 50, 50, 120)); 
+            if (i < mPlayer.lives())
+                s.setColor(sf::Color::White);
+            else
+                s.setColor(sf::Color(50, 50, 50, 120));
 
             mWindow.draw(s);
         }
@@ -648,14 +852,15 @@ void Game::drawHUD()
     currentY -= 45.f;
 
     // --- 3. РИСУЕМ ПРОГРЕСС (ВЕРХНИЙ РЯД, УМЕНЬШЕННЫЙ) ---
-    if (mRM.hasTexture("counter")) {
+    if (mRM.hasTexture("counter"))
+    {
         // Иконка шара
         sf::Sprite counterIcon(mRM.texture("counter"));
-        
+
         // РАЗМЕР: Высота 34 пикселя (было 45)
         float counterScale = 34.f / counterIcon.getLocalBounds().size.y;
         counterIcon.setScale({counterScale, counterScale});
-        
+
         // Выравнивание: левый край иконки шара тоже ровно в startX
         counterIcon.setOrigin({0.f, counterIcon.getLocalBounds().size.y / 2.f});
         counterIcon.setPosition({startX, currentY});
@@ -666,27 +871,31 @@ void Game::drawHUD()
         sf::Text txtProgress(mRM.font("light"), progressStr, 64);
         txtProgress.setFillColor(sf::Color::White);
         txtProgress.setStyle(sf::Text::Style::Bold);
-        
+
         // ТЕКСТ ТОЖЕ МЕНЬШЕ: масштаб 0.45 (было 0.6)
-        txtProgress.setScale({0.45f, 0.45f}); 
+        txtProgress.setScale({0.45f, 0.45f});
 
         // Ставим число справа от иконки
         sf::FloatRect valB = txtProgress.getLocalBounds();
         txtProgress.setOrigin({0.f, valB.position.y + valB.size.y / 2.f});
-        
+
         // Отступаем от иконки шара всего 8 пикселей
         float iconWidth = counterIcon.getGlobalBounds().size.x;
         txtProgress.setPosition({startX + iconWidth + 8.f, currentY});
-        
+
         mWindow.draw(txtProgress);
     }
 
     // --- 4. ЦЕНТРАЛЬНЫЙ ТЕКСТ (БЕЗ ИЗМЕНЕНИЙ ПО ЛОГИКЕ) ---
-    auto drawCenterMessage = [&](const std::string &textStr) {
+    auto drawCenterMessage = [&](const std::string &textStr)
+    {
         int alpha = 255;
-        if (mCenterTextTimer > 2.5f) {
-            if (mCenterTextTimer <= 2.75f) alpha = static_cast<int>(255.f * (1.f - (mCenterTextTimer - 2.5f) / 0.25f));
-            else alpha = static_cast<int>(255.f * ((mCenterTextTimer - 2.75f) / 0.25f));
+        if (mCenterTextTimer > 2.5f)
+        {
+            if (mCenterTextTimer <= 2.75f)
+                alpha = static_cast<int>(255.f * (1.f - (mCenterTextTimer - 2.5f) / 0.25f));
+            else
+                alpha = static_cast<int>(255.f * ((mCenterTextTimer - 2.75f) / 0.25f));
         }
 
         sf::Color mainColor(255, 248, 237, alpha);
@@ -713,37 +922,255 @@ void Game::drawHUD()
         mWindow.draw(msg);
     };
 
-    if (mPlayer.state() == Player::State::OnPlatform) drawCenterMessage("Type letter to begin");
-    else if (mIsWaitingForTyping) drawCenterMessage("Keep typing...");
+    if (mPlayer.state() == Player::State::OnPlatform)
+        drawCenterMessage("Type letter to begin");
+    else if (mIsWaitingForTyping)
+        drawCenterMessage("Keep typing...");
 }
 
 // --- ВОЗВРАЩАЕМ МЕТОД, КОТОРЫЙ ПОТЕРЯЛСЯ ---
+// void Game::renderGameOver()
+// {
+//     float cx = mHudView.getSize().x / 2.f;
+
+//     std::string titleText = (mState == GameState::Win) ? "YOU WIN!" : "GAME OVER";
+//     sf::Color titleColor = (mState == GameState::Win) ? sf::Color(80, 220, 80) : sf::Color(220, 80, 80);
+
+//     auto over = makeText(titleText, 56, titleColor, cx, 120);
+//     over.setStyle(sf::Text::Style::Bold);
+//     mWindow.draw(over);
+
+//     std::ostringstream statsStr;
+//     statsStr << std::fixed << std::setprecision(1);
+
+//     if (mCurrentMode == GameMode::Classic) {
+//         statsStr << "Time: " << mStats.time() << "s\n";
+//     } else {
+//         statsStr << "Balloons cleared: " << mStats.hits() << "\n";
+//     }
+
+//     statsStr << "CPM: " << std::setprecision(0) << mStats.cpm() << "\n"
+//              << "Accuracy: " << std::setprecision(1) << mStats.accuracy() << "%";
+
+//     mWindow.draw(makeText(statsStr.str(), 24, sf::Color::White, cx, 240));
+//     mWindow.draw(makeText("ENTER to play again", 20, sf::Color(100, 220, 160), cx, 400));
+//     mWindow.draw(makeText("ESC for Menu", 20, sf::Color(160, 160, 180), cx, 450));
+// }
+
+/*void Game::renderGameOver()
+{
+    float cx = mHudView.getSize().x / 2.f;
+
+    // --- ЗАГОЛОВОК ---
+    std::string titleText = (mState == GameState::Win) ? "YOU WIN!" : "GAME OVER";
+    sf::Color titleColor = (mState == GameState::Win) ? sf::Color(180, 219, 152) : sf::Color(255, 224, 224);
+
+    sf::Text over = makeText(titleText, 140, titleColor, cx, 120.f);
+    over.setFont(mRM.font("bold")); // Задаем шрифт
+    over.setStyle(sf::Text::Style::Bold);
+    over.setScale({0.4f, 0.4f});
+
+    sf::FloatRect b = over.getLocalBounds();
+    over.setOrigin({b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f});
+
+    sf::Text shadow = over;
+    shadow.setFillColor(sf::Color(0, 0, 0, 150));
+    shadow.move({1.3f, 1.3f});
+
+    mWindow.draw(shadow);
+    mWindow.draw(over);
+
+    // --- БЛОК СТАТИСТИКИ (Рамочка) ---
+    // Рисуем подложку
+    sf::ConvexShape statsBox = createRoundedRect(340.f, 160.f, 15.f);
+    statsBox.setPosition({cx, 280.f});
+    statsBox.setFillColor(sf::Color(40, 75, 115)); // Полупрозрачный черный
+    statsBox.setOutlineThickness(3.f);
+    statsBox.setOutlineColor(sf::Color(66, 102, 150)); // Белая рамка
+    mWindow.draw(statsBox);
+
+    // Текст статистики
+    std::ostringstream statsStr;
+    statsStr << std::fixed << std::setprecision(1);
+    if (mCurrentMode == GameMode::Classic)
+        statsStr << "Time: " << mStats.time() << "s ";
+    else
+        statsStr << "Balloons: " << mStats.hits() << " ";
+
+    statsStr << "CPM: " << std::setprecision(0) << mStats.cpm() << " "
+             << "Accuracy: " << std::setprecision(1) << mStats.accuracy() << "%";
+
+    sf::Text statsText = makeText(statsStr.str(), 64, sf::Color::White, cx, 280.f);
+    statsText.setFont(mRM.font("light")); // Используем тонкий шрифт для текста
+    statsText.setScale({0.35f, 0.35f});
+    sf::FloatRect sB = statsText.getLocalBounds();
+    statsText.setOrigin({sB.position.x + sB.size.x / 2.f, sB.position.y + sB.size.y / 2.f});
+    mWindow.draw(statsText);
+
+    // --- КНОПКИ ---
+    sf::Color whiteBtn(255, 255, 255, 70);
+    sf::Color greenBtn(90, 215, 151, 70);
+
+    sf::Color goldenOutline(255, 195, 43, 200);
+    sf::Color exitOutline(180, 180, 180);
+
+    if (drawButton("Play Again", cx - 140.f, 440.f, 220.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+    {
+        startGame(mCurrentMode);
+    }
+
+    if (drawButton("Back to Menu", cx + 140.f, 440.f, 220.f, 50.f, whiteBtn, sf::Color::White, exitOutline))
+    {
+        mState = GameState::Menu;
+    }
+}*/
+
 void Game::renderGameOver()
 {
     float cx = mHudView.getSize().x / 2.f;
 
+    // --- 1. ЗАГОЛОВОК (GAME OVER / YOU WIN) ---
     std::string titleText = (mState == GameState::Win) ? "YOU WIN!" : "GAME OVER";
-    sf::Color titleColor = (mState == GameState::Win) ? sf::Color(80, 220, 80) : sf::Color(220, 80, 80);
+    sf::Color titleColor = (mState == GameState::Win) ? sf::Color(180, 219, 152) : sf::Color(255, 220, 220);
 
-    auto over = makeText(titleText, 56, titleColor, cx, 120);
+    sf::Text over = makeText(titleText, 140, titleColor, cx, 80.f);
+    over.setFont(mRM.font("bold"));
     over.setStyle(sf::Text::Style::Bold);
+    over.setScale({0.4f, 0.4f});
+
+    sf::FloatRect b = over.getLocalBounds();
+    over.setOrigin({b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f});
+
+    sf::Text shadow = over;
+    shadow.setFillColor(sf::Color(0, 0, 0, 150));
+    shadow.move({2.f, 2.f});
+
+    mWindow.draw(shadow);
     mWindow.draw(over);
 
-    std::ostringstream statsStr;
-    statsStr << std::fixed << std::setprecision(1);
+    // --- 2. ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ КРУГОВЫХ ДИАГРАММ ---
+    auto drawStatWidget = [&](float x, float y, float radius, float percent, sf::Color ringColor, const std::string &mainVal, const std::string &subVal, const std::string &labelName)
+    {
+        // А. Рисуем темный базовый круг (подложка)
+        sf::CircleShape base(radius);
+        base.setOrigin({radius, radius});
+        base.setPosition({x, y});
+        base.setFillColor(sf::Color(40, 60, 90, 200)); // Темно-синий фон круга
+        base.setOutlineThickness(7.f);
+        base.setOutlineColor(sf::Color(66, 102, 150)); // Светло-синяя граница
+        mWindow.draw(base);
 
-    if (mCurrentMode == GameMode::Classic) {
-        statsStr << "Time: " << mStats.time() << "s\n";
-    } else {
-        statsStr << "Balloons cleared: " << mStats.hits() << "\n";
+        // Б. Рисуем цветное кольцо прогресса (Математика треугольников)
+        int segments = 200; // Качество круга (чем больше, тем круглее)
+        int activeSegments = static_cast<int>(segments * percent);
+
+        if (activeSegments > 0)
+        {
+            float thickness = 5.f; // Толщина цветного кольца
+            // TriangleStrip строит кольцо, соединяя точки зигзагом
+            sf::VertexArray ring(sf::PrimitiveType::TriangleStrip, (activeSegments + 1) * 2);
+
+            float angleStep = (2.f * 3.141592654f) / segments;
+            float startAngle = -3.141592654f / 2.f; // Начинаем с 12 часов (верх)
+
+            for (int i = 0; i <= activeSegments; ++i)
+            {
+                float angle = startAngle + i * angleStep;
+                float cosA = std::cos(angle);
+                float sinA = std::sin(angle);
+
+                // Внутренняя точка
+                ring[i * 2].position = {x + (radius - thickness) * cosA, y + (radius - thickness) * sinA};
+                ring[i * 2].color = ringColor;
+
+                // Внешняя точка
+                ring[i * 2 + 1].position = {x + radius * cosA, y + radius * sinA};
+                ring[i * 2 + 1].color = ringColor;
+            }
+            mWindow.draw(ring);
+        }
+
+        // В. Тексты внутри и под кругом
+        auto drawCenteredText = [&](const std::string &txt, float ty, int size, sf::Color col, bool isBold)
+        {
+            sf::Text t(mRM.font("light"), txt, size);
+            t.setFillColor(col);
+            if (isBold)
+                t.setStyle(sf::Text::Style::Bold);
+            t.setScale({0.35f, 0.35f});
+            sf::FloatRect bounds = t.getLocalBounds();
+            t.setOrigin({bounds.position.x + bounds.size.x / 2.f, bounds.position.y + bounds.size.y / 2.f});
+            t.setPosition({x, ty});
+            t.setLetterSpacing(.85f);
+            mWindow.draw(t);
+        };
+
+        drawCenteredText(mainVal, y - 10.f, 100, sf::Color::White, true);           // Главная цифра (крупно)
+        drawCenteredText(subVal, y + 25.f, 34, sf::Color(200, 200, 200), false);    // Подпись внутри (мелко)
+        drawCenteredText(labelName, y + radius + 30.f, 60, sf::Color::White, true); // Подпись ПОД кругом
+    };
+
+    // --- 3. РАСЧЕТ И ОТРИСОВКА ВИДЖЕТОВ ---
+    float widgetY = 260.f; // Высота центров кругов
+    float rad = 80.f;      // Радиус кругов
+
+    // Форматирование чисел до 1 знака после запятой
+    std::ostringstream accStr, timeStr, cpmStr;
+    accStr << std::fixed << std::setprecision(1) << mStats.accuracy() << "%";
+    timeStr << std::fixed << std::setprecision(1) << mStats.time() << "s";
+    cpmStr << std::fixed << std::setprecision(0) << mStats.cpm();
+
+    // Левый виджет (Точность)
+    float accPercent = mStats.accuracy() / 100.f;
+    sf::Color accColor = (accPercent > 0.9f) ? sf::Color(255, 200, 50) : sf::Color(220, 80, 80); // Желтый если > 90%, иначе красный
+    drawStatWidget(cx - 220.f, widgetY, rad, accPercent, accColor, accStr.str(), "real accuracy", "accuracy");
+
+    // Центральный виджет (Время)
+    // У времени нет "процента прогресса", поэтому кольцо залито на 100% (1.0f) нейтральным цветом
+    drawStatWidget(cx, widgetY - 20.f, rad * 0.85f, 1.0f, sf::Color(100, 150, 200), timeStr.str(), "duration", "time");
+
+    // Правый виджет (Скорость CPM)
+    // Рассчитываем прогресс: допустим, 250 CPM — это 100% закрашенного кольца
+    float cpmPercent = std::min(1.0f, mStats.cpm() / 250.f);
+    drawStatWidget(cx + 220.f, widgetY, rad, cpmPercent, sf::Color(255, 200, 50), cpmStr.str(), "cpm", "speed");
+
+    // --- 4. ИТОГОВЫЙ СЧЕТ (ПОД КРУГАМИ) ---
+    sf::Text scoreTxt = makeText(std::to_string(mStats.score()), 120, sf::Color::White, cx, 400.f);
+    scoreTxt.setFont(mRM.font("VR-regular"));
+    scoreTxt.setScale({0.5f, 0.5f});
+    sf::FloatRect scB = scoreTxt.getLocalBounds();
+    scoreTxt.setOrigin({scB.position.x + scB.size.x / 2.f, scB.position.y + scB.size.y / 2.f});
+    mWindow.draw(scoreTxt);
+
+    sf::Text scoreLabel = makeText("TOTAL SCORE", 50, sf::Color(200, 200, 200), cx, 440.f);
+    scoreLabel.setFont(mRM.font("light"));
+    scoreLabel.setScale({0.35f, 0.35f});
+    sf::FloatRect slB = scoreLabel.getLocalBounds();
+    scoreLabel.setOrigin({slB.position.x + slB.size.x / 2.f, slB.position.y + slB.size.y / 2.f});
+    mWindow.draw(scoreLabel);
+
+    // Разделительная линия (как на скриншоте)
+    sf::RectangleShape line({200.f, 1.7f});
+    line.setOrigin({100.f, 1.f});
+    line.setPosition({cx, 425.f});
+    line.setFillColor(sf::Color(255, 255, 255, 100));
+    mWindow.draw(line);
+
+    sf::Color whiteBtn(255, 255, 255, 70);
+    sf::Color greenBtn(90, 215, 151, 70);
+
+    sf::Color goldenOutline(255, 195, 43, 200);
+    sf::Color exitOutline(180, 180, 180);
+
+    if (drawButton("Play Again", cx - 140.f, 520.f, 220.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+    {
+        startGame(mCurrentMode);
     }
-    
-    statsStr << "WPM: " << std::setprecision(0) << mStats.wpm() << "\n"
-             << "Accuracy: " << std::setprecision(1) << mStats.accuracy() << "%";
 
-    mWindow.draw(makeText(statsStr.str(), 24, sf::Color::White, cx, 240));
-    mWindow.draw(makeText("ENTER to play again", 20, sf::Color(100, 220, 160), cx, 400));
-    mWindow.draw(makeText("ESC for Menu", 20, sf::Color(160, 160, 180), cx, 450));
+    if (drawButton("Back to Menu", cx + 140.f, 520.f, 220.f, 50.f, whiteBtn, sf::Color::White, exitOutline))
+    {
+        mState = GameState::Menu;
+    }
 }
 
 // -----------------------------------------------------
@@ -789,4 +1216,100 @@ void Game::toggleFullscreen()
     // После изменения окна пересчитываем расширение камеры
     sf::Vector2u size = mWindow.getSize();
     adjustViewports(size.x, size.y);
+}
+
+// --- ГЕНЕРАТОР ЗАКРУГЛЕННЫХ ПРЯМОУГОЛЬНИКОВ ---
+sf::ConvexShape Game::createRoundedRect(float width, float height, float radius)
+{
+    sf::ConvexShape shape;
+    int pointsPerCorner = 10;
+    shape.setPointCount(pointsPerCorner * 4);
+
+    float pi = 3.141592654f;
+    int pointIdx = 0;
+
+    // Функция для генерации дуги
+    auto addCorner = [&](float cx, float cy, float startAngle)
+    {
+        for (int i = 0; i < pointsPerCorner; ++i)
+        {
+            float angle = startAngle + (i * (pi / 2.f) / (pointsPerCorner - 1));
+            shape.setPoint(pointIdx++, sf::Vector2f(cx + radius * std::cos(angle), cy + radius * std::sin(angle)));
+        }
+    };
+
+    // 4 угла
+    addCorner(width - radius, height - radius, 0.f);   // Правый нижний
+    addCorner(radius, height - radius, pi / 2.f);      // Левый нижний
+    addCorner(radius, radius, pi);                     // Левый верхний
+    addCorner(width - radius, radius, pi * 3.f / 2.f); // Правый верхний
+
+    // Центрируем Origin, чтобы кнопка масштабировалась из центра
+    shape.setOrigin({width / 2.f, height / 2.f});
+    return shape;
+}
+
+// --- УМНАЯ КНОПКА (IMGUI) ---
+bool Game::drawButton(const std::string &textStr, float x, float y, float width, float height, sf::Color bgColor, sf::Color textColor, sf::Color outlineColor)
+{
+    // 1. АНИМАЦИЯ НАВЕДЕНИЯ
+    float &progress = mButtonHoverProgress[textStr];
+
+    sf::FloatRect hitbox({x - width / 2.f, y - height / 2.f}, {width, height});
+    bool isHovered = hitbox.contains(mMousePos);
+
+    float animSpeed = 1.0f / 0.2f;
+    if (isHovered)
+    {
+        progress += mLastDt * animSpeed;
+        if (progress > 1.0f)
+            progress = 1.0f;
+    }
+    else
+    {
+        progress -= mLastDt * animSpeed;
+        if (progress < 0.0f)
+            progress = 0.0f;
+    }
+
+    float currentScale = 1.0f + (0.05f * progress);
+
+    sf::Color currentColor = bgColor;
+    currentColor.r = std::min(255, currentColor.r + static_cast<int>(30 * progress));
+    currentColor.g = std::min(255, currentColor.g + static_cast<int>(30 * progress));
+    currentColor.b = std::min(255, currentColor.b + static_cast<int>(30 * progress));
+
+    // 2. ОТРИСОВКА КНОПКИ
+    sf::ConvexShape btnShape = createRoundedRect(width, height, 20.f);
+    btnShape.setPosition({x, y});
+    btnShape.setScale({currentScale, currentScale});
+    btnShape.setFillColor(currentColor);
+    btnShape.setOutlineThickness(1.3f);
+    btnShape.setOutlineColor(outlineColor);
+
+    mWindow.draw(btnShape);
+
+    // 3. ОТРИСОВКА ТЕКСТА КНОПКИ (С ОПТИЧЕСКИМ ВЫРАВНИВАНИЕМ)
+    // textOffsetY можно оставить -2.f или поставить 0.f, так как мы меняем Origin
+    float textOffsetY = 0.f;
+    sf::Text txt = makeText(textStr, 70, textColor, x, y + textOffsetY);
+    txt.setFont(mRM.font("VR-regular"));
+    txt.setScale({0.4f * currentScale, 0.4f * currentScale});
+
+    sf::FloatRect b = txt.getLocalBounds();
+
+    // --- МАГИЯ ОПТИЧЕСКОГО ЦЕНТРИРОВАНИЯ ---
+    // Вместо b.position.y + b.size.y / 2.f (который включает хвосты букв y, g, p)
+    // мы используем фиксированную высоту "тела" букв.
+    // Для размера 70 число 28.f — это примерно середина заглавных букв.
+    float opticalCenterY = 47.f;
+
+    txt.setOrigin({
+        b.position.x + b.size.x / 2.f, // По горизонтали оставляем точный центр
+        opticalCenterY                 // По вертикали фиксируем "глазную" середину
+    });
+
+    mWindow.draw(txt);
+
+    return (isHovered && mIsMouseClicked);
 }

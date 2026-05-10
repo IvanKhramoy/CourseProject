@@ -37,12 +37,18 @@ namespace Paths {
     inline const std::string FONT_RM_700   = "assets/fonts/RobotoMono-700.ttf";
     inline const std::string FONT_CO_400   = "assets/fonts/ConcertOne-Regular.ttf";
     inline const std::string FONT_VR_400   = "assets/fonts/VarelaRound-Regular.ttf";
+
+    inline const std::string MUSIC_MENU   = "assets/sounds/Menu_theme.mp3";
+    inline const std::string MUSIC_GAME   = "assets/sounds/Main_theme.mp3";
+    inline const std::string MUSIC_RESULT = "assets/sounds/Menu_theme.mp3";
+    
     inline const std::string FONT_FALLBACK = "/System/Library/Fonts/Supplemental/Arial.ttf";
     inline const std::string EXPLOSION_TEXTURE = "assets/textures/explosion.png";
     inline const std::string LIFE_TEXTURE = "assets/textures/avatar.png";
     inline const std::string COUNTER_TEXTURE = "assets/textures/counter.png";
 
     inline const std::string BG_TEXTURE    = "assets/textures/Back.png";
+    inline const std::string MENU_BG_TEXTURE    = "assets/textures/menu_background.jpg";
 
     inline const std::string CLIFF_TEXTURE = "assets/textures/Cliff.png";
 
