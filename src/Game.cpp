@@ -337,6 +337,7 @@ void Game::processEventsMenu(const sf::Event &event)
 
 void Game::processEventsPlaying(const sf::Event &event)
 {
+    if (mIsDeadWaiting) return;
     if (const auto *textEntered = event.getIf<sf::Event::TextEntered>())
     {
         if (textEntered->unicode < 128)
@@ -684,9 +685,16 @@ void Game::updatePlaying(float dt)
     }
 
     // Плавное догоняние (Lerp)
-    float interpolationSpeed = 5.0f;
+    // float interpolationSpeed = 5.0f;
+    // sf::Vector2f currentCenter = mWorldView.getCenter();
+    // float newCamX = currentCenter.x + (targetCamX - currentCenter.x) * interpolationSpeed * dt;
+    // mWorldView.setCenter({newCamX, WINDOW_H / 2.f});
+
+    float lerpFactor = 1.0f - std::exp(-8.0f * dt);
+    
     sf::Vector2f currentCenter = mWorldView.getCenter();
-    float newCamX = currentCenter.x + (targetCamX - currentCenter.x) * interpolationSpeed * dt;
+    float newCamX = currentCenter.x + (targetCamX - currentCenter.x) * lerpFactor;
+
     mWorldView.setCenter({newCamX, WINDOW_H / 2.f});
 
     // --- 2. ОБНОВЛЕНИЕ ЧАСТИЦ/ВЗРЫВОВ (Без изменений) ---

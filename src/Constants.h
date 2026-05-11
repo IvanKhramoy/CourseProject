@@ -10,7 +10,7 @@ constexpr int   CLASSIC_LIVES      = 3;
 constexpr int   ENDLESS_LIVES      = 1;
 constexpr float PLAYER_WIDTH       = 32.f;  // Уменьшили (было 48)
 constexpr float PLAYER_HEIGHT      = 48.f;  // Уменьшили (было 72)
-constexpr float JUMP_DURATION      = 0.4f;
+constexpr float JUMP_DURATION      = 0.45f;
 constexpr float PLATFORM_X         = 40.f;  // Сдвинули к самому левому краю (было 100)
 constexpr float PLATFORM_Y         = 450.f;
 constexpr float FALL_LIMIT         = WINDOW_H + 50.f;
@@ -46,6 +46,8 @@ namespace Paths {
     inline const std::string SOUND_ERROR   = "assets/sounds/wrong.wav";
 
     inline const std::string SOUND_EXPLOSION = "assets/sounds/balloon.wav";
+
+    inline const std::string HIGHSCORE_FILE = "highscores.txt";
     
 
     inline const std::string FONT_FALLBACK = "/System/Library/Fonts/Supplemental/Arial.ttf";

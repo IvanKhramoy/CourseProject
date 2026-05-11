@@ -3,6 +3,7 @@
 #include "ResourceManager.h"
 #include "StatsTracker.h"
 #include "BalloonManager.h"
+#include "HighscoreManager.h"
 #include "Constants.h"
 #include "Player.h"
 #include "Background.h"
@@ -150,4 +151,8 @@ private:
 
     float mLastDt = 0.f;
     std::map<std::string, float> mButtonHoverProgress;
+
+    bool mIsNewRecord = false;
+    bool mShowLeaderboard = false;
+    std::vector<int> mTopScores;
 };
