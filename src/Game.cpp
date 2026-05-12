@@ -5,9 +5,9 @@
 #include <iomanip>
 #include <cstdlib>
 #include <ctime>
+#include <cstdint>
 
 Game::Game()
-    // Теперь игра по умолчанию запускается в Полный Экран (Fullscreen)
     : mWindow(sf::VideoMode::getDesktopMode(), "BalloonTyper", sf::Style::Default, sf::State::Fullscreen, sf::ContextSettings{0, 0, 16}), mState(GameState::Menu), mCurrentMode(GameMode::Classic), mBalloons(mRM), mPlayer(mRM), mIsFullscreen(true)
 {
     mWindow.setFramerateLimit(FPS_LIMIT);
@@ -25,7 +25,6 @@ Game::Game()
 
     try
     {
-        // mRM.loadFont("main", Paths::FONT);
         mRM.loadFont("main", Paths::FONT_RM_400);
         mRM.loadFont("light", Paths::FONT_RM_300);
         mRM.loadFont("semibold", Paths::FONT_RM_600);
@@ -57,7 +56,6 @@ Game::Game()
         printf("Error loading ninja: %s\n", e.what());
     }
 
-    // ++
     try
     {
         mRM.loadTexture("bg", Paths::BG_TEXTURE);
@@ -101,24 +99,18 @@ Game::Game()
         // Создаем спрайт через make_unique, передавая текстуру
         mCliffSprite = std::make_unique<sf::Sprite>(cliffTex);
 
-        // В SFML 3 ширина — это size.x, высота — это size.y
         sf::FloatRect bounds = mCliffSprite->getLocalBounds();
         mCliffSprite->setOrigin({0, 0});
-        // mCliffSprite->setOrigin({bounds.size.x / 2.f, 0.f});
-        // mCliffSprite->setScale({1.0f, 1.0f});
 
         float cliffScaleX = 0.35f;
         float cliffScaleY = 0.4f;
         mCliffSprite->setScale({cliffScaleX, cliffScaleY});
-        printf("Cliff size: %f x %f\n", bounds.size.x, bounds.size.y);
-        // mCliffSprite->setPosition({PLATFORM_X, PLATFORM_Y});
         mCliffSprite->setPosition({0, 330});
     }
     catch (const std::exception &e)
     {
         printf("Error loading cliff: %s\n", e.what());
     }
-    // Пока мы подгоняем графику, сделай платформу чуть-чуть видимой (трафарет)
     mPlatform.setFillColor(sf::Color(0, 0, 0, 0));
 
     try
@@ -126,14 +118,9 @@ Game::Game()
         mRM.loadTexture("end_cliff", Paths::END_CLIFF_TEXTURE);
         mEndCliffSprite = std::make_unique<sf::Sprite>(mRM.texture("end_cliff"));
 
-        // Масштаб (подбери под свои нужды, как делали со стартовой скалой)
         float endScaleX = 0.45f;
         float endScaleY = 0.5f;
         mEndCliffSprite->setScale({endScaleX, endScaleY});
-
-        // НАСТРОЙКА ТОЧКИ ПРИВЯЗКИ (Origin)
-        // Ставим X в 0 (левый край картинки),
-        // а Y подбери так, чтобы поверхность скалы совпала с ногами ниндзя
         mEndCliffSprite->setOrigin({0.f, 0.f});
     }
     catch (const std::exception &e)
@@ -144,7 +131,6 @@ Game::Game()
     try
     {
         mRM.loadTexture("life", Paths::LIFE_TEXTURE);
-        // Обязательно включаем сглаживание для такой большой картинки!
         const_cast<sf::Texture &>(mRM.texture("life")).setSmooth(true);
     }
     catch (const std::exception &e)
@@ -168,14 +154,13 @@ Game::Game()
         {
             printf("Error loading music: %s\n", path.c_str());
         }
-        music.setLooping(true); // Музыка должна зацикливаться
-        music.setVolume(0.f);   // Начинаем с тишины
+        music.setLooping(true); 
+        music.setVolume(0.f);   
     };
 
     loadMusic(mMusicMenu, Paths::MUSIC_MENU);
     loadMusic(mMusicGame, Paths::MUSIC_GAME);
 
-    // Сразу запускаем музыку меню
     mMusicMenu.play();
 
     try
@@ -203,7 +188,7 @@ Game::Game()
 
         // Настраиваем громкость
         mCorrectSound->setVolume(500.f);
-        mErrorSound->setVolume(1000.f); // Звук ошибки лучше делать чуть тише, чтобы он не пугал
+        mErrorSound->setVolume(1200.f); 
     }
     catch (const std::exception &e)
     {
@@ -240,8 +225,6 @@ Game::Game()
             printf("Error loading %s: %s\n", id.c_str(), e.what());
         }
     }
-    // Инициализируем графику игрока после загрузки всех текстур
-    // mPlayer.initGraphics(mRM);
 }
 
 void Game::run()
@@ -322,91 +305,107 @@ void Game::processEvents()
 
 void Game::processEventsMenu(const sf::Event &event)
 {
-    // if (const auto *keyPressed = event.getIf<sf::Event::KeyPressed>())
-    // {
-    //     if (keyPressed->code == sf::Keyboard::Key::Num1)
-    //     {
-    //         startGame(GameMode::Classic);
-    //     }
-    //     else if (keyPressed->code == sf::Keyboard::Key::Num2)
-    //     {
-    //         startGame(GameMode::Endless);
-    //     }
-    // }
 }
 
 void Game::processEventsPlaying(const sf::Event &event)
 {
-    if (mIsDeadWaiting) return;
+    if (mIsDeadWaiting)
+        return;
+    if (mPlayer.state() == Player::State::Jumping)
+        return;
+
     if (const auto *textEntered = event.getIf<sf::Event::TextEntered>())
     {
-        if (textEntered->unicode < 128)
+        // Используем 32-битный Юникод для поддержки кириллицы и спецсимволов
+        std::uint32_t typed = textEntered->unicode;
+
+        // Игнорируем управляющие клавиши (Enter, Backspace, Esc и т.д. — это коды < 32)
+        if (typed < 32)
+            return;
+
+        Balloon *target = mBalloons.currentTarget(mPlayer.position().x);
+
+        if (target)
         {
-            char c = static_cast<char>(textEntered->unicode);
-            if (std::isalpha(static_cast<unsigned char>(c)))
+            if (target->letter() == typed)
             {
-                char typed = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
-                Balloon *target = mBalloons.currentTarget(mPlayer.position().x);
-                if (target)
+                if (mCorrectSound)
+                    mCorrectSound->play();
+                mStats.recordHit();
+                mStrikeCount = 0; 
+
+                // Выход из режима "Keep typing"
+                if (mIsWaitingForTyping)
+                    mIsWaitingForTyping = false;
+                else
+                    mBalloons.increaseSpeed();
+
+                // Обновляем чекпоинт
+                mLastSafeX = target->position().x;
+                mLastSafeTexture = &target->getTexture();
+
+                // Обработка шаров
+                if (mCurrentBalloon && mCurrentBalloon != target)
                 {
-                    if (target->letter() == typed)
+                    mCurrentBalloon->setState(Balloon::State::Done);
+                }
+                mCurrentBalloon = target;
+                mCurrentBalloon->startFalling();
+
+                // Прыгаем на шар
+                mPlayer.jumpTo(target->position());
+
+                // Проверка на финиш уровня
+                if (mCurrentMode == GameMode::Classic && mStats.hits() >= CLASSIC_TARGET_BALLOONS)
+                {
+                    mWaitingForFinalJump = true;
+                }
+            }
+            else
+            {
+    
+                if (!mIsWaitingForTyping && mPlayer.state() != Player::State::OnPlatform)
+                {
+                    mStats.recordMiss();
+                    mStrikeCount++;
+
+                    if (mStrikeCount >= 3)
                     {
-                        if (mCorrectSound)
-                            mCorrectSound->play();
-                        mStats.recordHit();
+                        // === 3 ОШИБКИ: ВЗРЫВ ТЕКУЩЕГО ШАРА ===
+                        mPlayer.loseLife();
+                        if (mExplosionSound)
+                            mExplosionSound->play();
 
-                        if (mIsWaitingForTyping)
-                            mIsWaitingForTyping = false;
-                        else
-                            mBalloons.increaseSpeed();
+                        mPlayer.hide(); // Скрываем ниндзя
 
-                        mLastSafeX = target->position().x;
-                        mLastSafeTexture = &target->getTexture();
-
-                        // ПРОВЕРКА НА ФИНИШ
-                        if (mCurrentMode == GameMode::Classic && mStats.hits() >= CLASSIC_TARGET_BALLOONS)
+                        sf::Vector2f explosionPos = mPlayer.position();
+                        if (mCurrentBalloon)
                         {
-                            // mIsFinishing = true;
-
-                            // Отпускаем текущий шар, если он был
-                            if (mCurrentBalloon && mCurrentBalloon != target)
-                            {
-                                mCurrentBalloon->setState(Balloon::State::Done);
-                            }
-
-                            // 1. Делаем текущим шаром тот, на который только что нажали
-                            mCurrentBalloon = target;
-                            mCurrentBalloon->startFalling();
-
-                            mPlayer.jumpTo(target->position());
-
-                            // Если это последний шар — взводим "режим ожидания финала"
-                            if (mCurrentMode == GameMode::Classic && mStats.hits() >= CLASSIC_TARGET_BALLOONS)
-                            {
-                                mWaitingForFinalJump = true;
-                            }
+                            explosionPos = mCurrentBalloon->position();
+                            mCurrentBalloon->setState(Balloon::State::Done);
                         }
-                        else
-                        {
-                            // Обычная логика прыжка (как была раньше)
-                            if (mCurrentBalloon && mCurrentBalloon != target)
-                            {
-                                mCurrentBalloon->setState(Balloon::State::Done);
-                            }
-                            mCurrentBalloon = target;
-                            mCurrentBalloon->startFalling();
-                            mPlayer.jumpTo(target->position());
-                        }
+                        mCurrentBalloon = nullptr;
+
+                        // Визуальный взрыв
+                        Explosion ex(mRM.texture("explosion"));
+                        ex.sprite.setTextureRect(sf::IntRect({0, 0}, {EXPL_SIZE, EXPL_SIZE}));
+                        ex.sprite.setOrigin({EXPL_SIZE / 2.f, EXPL_SIZE / 2.f});
+                        ex.sprite.setPosition(explosionPos);
+                        ex.sprite.setScale({3.0f, 3.0f});
+                        mActiveExplosions.push_back(ex);
+
+                        // Запускаем задержку перед респавном
+                        mIsDeadWaiting = true;
+                        mRespawnTimer = 1.2f;
+                        mStrikeCount = 0;
                     }
-                    else // <--- ВОТ СЮДА НУЖНО ПОСТАВИТЬ ELSE! (Буква НЕВЕРНАЯ)
+                    else
                     {
-                        if (!mIsWaitingForTyping)
-                        {
-                            if (mErrorSound)
-                                mErrorSound->play();
-                            mStats.recordMiss();
-                        }
+                        // Меньше 3 ошибок - звук ошибки и вздрагивание ниндзя
+                        if (mErrorSound)
+                            mErrorSound->play();
+                        mPlayer.triggerErrorPulse();
                     }
                 }
             }
@@ -416,13 +415,7 @@ void Game::processEventsPlaying(const sf::Event &event)
 
 void Game::processEventsGameOver(const sf::Event &event)
 {
-    // if (const auto *keyPressed = event.getIf<sf::Event::KeyPressed>())
-    // {
-    //     if (keyPressed->code == sf::Keyboard::Key::Enter)
-    //     {
-    //         startGame(mCurrentMode);
-    //     }
-    // }
+
 }
 
 void Game::update(float dt)
@@ -465,15 +458,12 @@ void Game::update(float dt)
 
     if (mState == GameState::Menu)
     {
-        // 1. Создание (уже есть у тебя)
         if (std::rand() % 30 == 0)
         {
             mParticles.push_back({{static_cast<float>(std::rand() % WINDOW_W), -20.f},
                                   {static_cast<float>(std::rand() % 20 - 10), 60.f + (std::rand() % 20)},
                                   8.0f});
         }
-
-        // 2. ДВИЖЕНИЕ И ОБНОВЛЕНИЕ (Добавь этот кусок!)
         for (auto &p : mParticles)
         {
             // Легкое покачивание влево-вправо (эффект ветра)
@@ -496,166 +486,62 @@ void Game::update(float dt)
     }
 }
 
-// void Game::updatePlaying(float dt)
-// {
-//     // --- 1. ПЛАВНАЯ КАМЕРА ---
-//     float currentViewWidth = mWorldView.getSize().x;
-//     // float targetCamX = mPlayer.position().x + currentViewWidth / 6.f;
-//     float targetCamX = mPlayer.position().x + currentViewWidth / 4.f;
-//     targetCamX = std::max(targetCamX, currentViewWidth / 2.f);
+void Game::updateAllowedChars()
+{
+    mAllowedChars.clear();
 
-//     float interpolationSpeed = 5.0f;
-//     sf::Vector2f currentCenter = mWorldView.getCenter();
-//     float newCamX = currentCenter.x + (targetCamX - currentCenter.x) * interpolationSpeed * dt;
-//     mWorldView.setCenter({newCamX, WINDOW_H / 2.f});
+    // Защита: если ничего не выбрано, используем строчные буквы по умолчанию
+    if (!mUseLowerCase && !mUseUpperCase && !mUseDigits && !mUseSpecial)
+    {
+        mUseLowerCase = true;
+    }
 
-//     // --- 2. ОБНОВЛЕНИЕ ЧАСТИЦ (ВЗРЫВА) ---
-//     // for (auto &p : mParticles)
-//     // {
-//     //     p.pos += p.vel * dt;
-//     //     p.lifetime -= dt;
-//     // }
-//     // mParticles.erase(std::remove_if(mParticles.begin(), mParticles.end(),
-//     //                                 [](const Particle &p)
-//     //                                 { return p.lifetime <= 0; }),
-//     //                  mParticles.end());
+    if (mCurrentLanguage == Language::English)
+    {
+        if (mUseLowerCase)
+        {
+            for (std::uint32_t c = 'a'; c <= 'z'; ++c)
+                mAllowedChars.push_back(c);
+        }
+        if (mUseUpperCase)
+        {
+            for (std::uint32_t c = 'A'; c <= 'Z'; ++c)
+                mAllowedChars.push_back(c);
+        }
+    }
+    else
+    {
+        // Русские буквы в Юникоде (Кириллица)
+        if (mUseLowerCase)
+        {
+            for (std::uint32_t c = 0x0430; c <= 0x044F; ++c)
+                mAllowedChars.push_back(c);
+            mAllowedChars.push_back(0x0451); // буква 'ё'
+        }
+        if (mUseUpperCase)
+        {
+            for (std::uint32_t c = 0x0410; c <= 0x042F; ++c)
+                mAllowedChars.push_back(c);
+            mAllowedChars.push_back(0x0401); // буква 'Ё'
+        }
+    }
 
-//     for (auto &ex : mActiveExplosions)
-//     {
-//         ex.timer += dt;
-//         if (ex.timer >= EXPL_SPEED)
-//         {
-//             ex.timer = 0;
-//             ex.currentFrame++;
+    if (mUseDigits)
+    {
+        for (std::uint32_t c = '0'; c <= '9'; ++c)
+            mAllowedChars.push_back(c);
+    }
 
-//             if (ex.currentFrame < EXPL_FRAMES)
-//             {
-//                 // Сдвигаем "окошко" выбора кадра вправо по картинке
-//                 ex.sprite.setTextureRect(sf::IntRect({ex.currentFrame * EXPL_SIZE, 0}, {EXPL_SIZE, EXPL_SIZE}));
-//             }
-//             else
-//             {
-//                 ex.finished = true; // Анимация закончилась
-//             }
-//         }
-//     }
-//     // Удаляем завершенные взрывы
-//     mActiveExplosions.erase(std::remove_if(mActiveExplosions.begin(), mActiveExplosions.end(),
-//                                            [](const Explosion &ex)
-//                                            { return ex.finished; }),
-//                             mActiveExplosions.end());
-
-//     // --- 3. ЛОГИКА СМЕРТИ И ЗАДЕРЖКИ ПЕРЕД РЕСПАВНОМ ---
-//     if (mIsDeadWaiting)
-//     {
-//         mRespawnTimer -= dt;
-//         if (mRespawnTimer <= 0.f)
-//         {
-//             mIsDeadWaiting = false; // Время вышло, пора воскрешать
-
-//             // Создаем платформу на месте последнего чекпоинта
-//             mCurrentBalloon = mBalloons.spawnRespawnPlatform(mLastSafeX, BALLOON_START_Y, *mLastSafeTexture);
-//             if (mCurrentBalloon)
-//             {
-//                 mPlayer.respawnOn(mCurrentBalloon->position());
-//                 mIsWaitingForTyping = true; // Показываем "Keep typing"
-//             }
-//         }
-//         return; // Пока ждем респавна, остальную логику (шары, прыжки) не крутим
-//     }
-
-//     // --- 4. ОБЫЧНОЕ ОБНОВЛЕНИЕ МИРА ---
-//     float cameraRightEdge = mWorldView.getCenter().x + currentViewWidth / 2.f;
-//     mBalloons.update(dt, cameraRightEdge, mPlayer.position().x);
-
-//     // Безопасность: если текущий шар удален менеджером
-//     if (mCurrentBalloon && !mBalloons.isValid(mCurrentBalloon))
-//     {
-//         mCurrentBalloon = nullptr;
-//     }
-
-//     mPlayer.update(dt);
-
-//     // Логика привязки к шару и ДЕТЕКЦИЯ ПАДЕНИЯ
-//     if (mPlayer.state() == Player::State::OnBalloon && mCurrentBalloon != nullptr)
-//     {
-//         mPlayer.setBalloonPosition(mCurrentBalloon->position());
-
-//         // Если ниндзя скрылся за нижним краем экрана
-//         if (mPlayer.position().y - (PLAYER_HEIGHT / 2.f) > WINDOW_H)
-//         {
-//             mPlayer.loseLife();
-//             if (mExplosionSound)
-//             {
-//                 mExplosionSound->play();
-//             }
-//             mStats.recordMiss();
-
-//             sf::Vector2f explosionPos = mPlayer.position();
-//             if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon))
-//             {
-//                 explosionPos = mCurrentBalloon->position();
-
-//                 // --- 2. УДАЛЯЕМ ШАР МГНОВЕННО ---
-//                 // Он исчезнет из логики, но его "заменит" собой вспышка взрыва
-//                 mCurrentBalloon->setState(Balloon::State::Done);
-//             }
-//             mCurrentBalloon = nullptr;
-//             Explosion ex(mRM.texture("explosion"));
-
-//             // Вырезаем первый кадр (самый левый верхний квадрат)
-//             ex.sprite.setTextureRect(sf::IntRect({0, 0}, {EXPL_SIZE, EXPL_SIZE}));
-
-//             // Центрируем и ставим в место падения
-//             ex.sprite.setOrigin({EXPL_SIZE / 2.f, EXPL_SIZE / 2.f});
-//             // ex.sprite.setPosition({mPlayer.position().x, (float)WINDOW_H - 50.f});
-//             ex.sprite.setPosition(explosionPos);
-
-//             ex.sprite.setScale({2.5f, 2.5f});
-
-//             mActiveExplosions.push_back(ex);
-
-//             if (mCurrentBalloon && mBalloons.isValid(mCurrentBalloon))
-//             {
-//                 mCurrentBalloon->setState(Balloon::State::Done);
-//             }
-//             mCurrentBalloon = nullptr;
-//             mIsDeadWaiting = true;
-//             mRespawnTimer = 1.2f;
-//         }
-//     }
-
-//     // --- 5. ФИНАЛЬНЫЙ ПРЫЖОК (ПОБЕДА) ---
-//     if (mWaitingForFinalJump && mPlayer.state() == Player::State::OnBalloon)
-//     {
-//         sf::Vector2f finishPos = {mPlayer.position().x + 300.f, PLATFORM_Y};
-
-//         if (mEndCliffSprite)
-//         {
-//             // Ставим скалу точно в X-координату приземления.
-//             // По Y ставим ту же высоту, что и у стартовой скалы (например, 330)
-//             mEndCliffSprite->setPosition({finishPos.x, 330.f});
-//             mShowEndCliff = true;
-//         }
-
-//         mPlayer.jumpTo(finishPos);
-//         mWaitingForFinalJump = false;
-//         mIsFinishing = true;
-//     }
-
-//     // --- 6. ПРОВЕРКИ СОСТОЯНИЙ ---
-//     if (!mPlayer.isAlive() && !mIsDeadWaiting)
-//     {
-//         mState = GameState::GameOver;
-//         mStats.stopTimer();
-//     }
-
-//     if (mIsFinishing && mPlayer.state() != Player::State::Jumping)
-//     {
-//         mState = GameState::Win;
-//         mStats.stopTimer();
-//     }
-// }
+    if (mUseSpecial)
+    {
+        // Вот та самая полная строка спецсимволов
+        std::string spec = "!@#$%^&*()_+-=[]{}|;:',.<>/?";
+        for (char c : spec)
+        {
+            mAllowedChars.push_back(static_cast<std::uint32_t>(static_cast<unsigned char>(c)));
+        }
+    }
+}
 
 void Game::updatePlaying(float dt)
 {
@@ -684,14 +570,8 @@ void Game::updatePlaying(float dt)
         targetCamX = std::min(targetCamX, maxCamX);
     }
 
-    // Плавное догоняние (Lerp)
-    // float interpolationSpeed = 5.0f;
-    // sf::Vector2f currentCenter = mWorldView.getCenter();
-    // float newCamX = currentCenter.x + (targetCamX - currentCenter.x) * interpolationSpeed * dt;
-    // mWorldView.setCenter({newCamX, WINDOW_H / 2.f});
-
     float lerpFactor = 1.0f - std::exp(-8.0f * dt);
-    
+
     sf::Vector2f currentCenter = mWorldView.getCenter();
     float newCamX = currentCenter.x + (targetCamX - currentCenter.x) * lerpFactor;
 
@@ -772,22 +652,6 @@ void Game::updatePlaying(float dt)
         }
     }
 
-    // --- 5. ФИНАЛЬНЫЙ ПРЫЖОК (Прыгаем на уже существующую скалу) ---
-    // if (mWaitingForFinalJump && mPlayer.state() == Player::State::OnBalloon)
-    // {
-    //     // Теперь мы не "создаем" координаты финиша, а берем их у скалы
-    //     // которую мы заранее поставили в startGame
-    //     if (mEndCliffSprite)
-    //     {
-    //         // Прыгаем ровно в точку, где стоит скала (с учетом высоты земли)
-    //         sf::Vector2f finishPos = { mEndCliffSprite->getPosition().x, PLATFORM_Y };
-    //         mPlayer.jumpTo(finishPos);
-    //     }
-
-    //     mWaitingForFinalJump = false;
-    //     mIsFinishing = true;
-    // }
-
     if (mWaitingForFinalJump && mPlayer.state() == Player::State::OnBalloon)
     {
         // Увеличиваем таймер ожидания
@@ -800,7 +664,7 @@ void Game::updatePlaying(float dt)
             {
                 // Прыгаем на скалу (теперь этот прыжок тоже будет по дуге!)
                 sf::Vector2f finishPos = {mEndCliffSprite->getPosition().x + 115.f, PLATFORM_Y - 145.f};
-                mPlayer.setFinalJump(true); 
+                mPlayer.setFinalJump(true);
                 mPlayer.jumpTo(finishPos);
             }
 
@@ -815,31 +679,23 @@ void Game::updatePlaying(float dt)
     {
         mState = GameState::GameOver;
         mStats.stopTimer();
+
+        if (mCurrentMode == GameMode::Endless)
+        {
+            mIsNewRecord = HighscoreManager::submitScore(mStats.score());
+            mTopScores = HighscoreManager::load();
+        }
     }
 
-    // if (mIsFinishing && mPlayer.state() != Player::State::Jumping)
-    // {
-    //     mState = GameState::Win;
-    //     mStats.stopTimer();
-    // }
-    // if (mIsFinishing) 
-    // {
-    //     // Ждем, пока ниндзя физически приземлится на скалу (состояние перестанет быть Jumping)
-    //     if (mPlayer.state() != Player::State::Jumping) 
-    //     {
-    //         mState = GameState::Win;
-    //         mStats.stopTimer();
-    //     }
-    // }
-    if (mIsFinishing) 
+    if (mIsFinishing)
     {
         // Проверяем: если ниндзя закончил прыжок и уже стоит на платформе
-        if (mPlayer.state() == Player::State::OnPlatform) 
+        if (mPlayer.state() == Player::State::OnPlatform)
         {
             // Начинаем отсчет 1.5 секунд
             mWinDelayTimer += dt;
 
-            if (mWinDelayTimer >= 1.f) 
+            if (mWinDelayTimer >= 1.f)
             {
                 mState = GameState::Win;
                 mStats.stopTimer();
@@ -887,12 +743,10 @@ void Game::updateMusic(float dt)
 {
     const float fadeSpeed = 100.f / 0.7f;
 
-    // --- ЛОГИКА ОБЪЕДИНЕНИЯ ---
-    // Целевая громкость UI-музыки = 100, если мы в Меню ИЛИ в Результатах (GameOver/Win)
     float targetUI = (mState == GameState::Menu ||
                       mState == GameState::GameOver ||
                       mState == GameState::Win)
-                         ? 100.f
+                         ? 50.f
                          : 0.f;
 
     // Целевая громкость игры = 100 только во время игры
@@ -921,127 +775,238 @@ void Game::updateMusic(float dt)
 
 void Game::renderMenu()
 {
-
     mWindow.clear(sf::Color(20, 20, 30));
 
-    // 2. Рисуем фон
+    // --- 1. ФОН И ПАРАЛЛАКС (Оставляем как есть) ---
     if (mMenuBgSprite)
     {
-        // --- ПАРАЛЛАКС ОТ МЫШИ ---
-        // Вычисляем, насколько мышка отклонилась от центра экрана
         sf::Vector2f mouseNormalized = {
             (mMousePos.x - mHudView.getSize().x / 2.f) / (mHudView.getSize().x / 2.f),
             (mMousePos.y - mHudView.getSize().y / 2.f) / (mHudView.getSize().y / 2.f)};
 
-        // Цель смещения (например, 30 пикселей в каждую сторону)
         sf::Vector2f targetOffset = {-mouseNormalized.x * 15.f, -mouseNormalized.y * 10.f};
-
-        // Плавная интерполяция (Lerp) к цели
         mBgOffset += (targetOffset - mBgOffset) * 2.0f * mLastDt;
 
-        // --- ПЛАВАЮЩИЙ ЭФФЕКТ (Твой код с синусом + параллакс) ---
         float panX = (mHudView.getSize().x / 2.f) + std::sin(mMenuAnimTimer * 0.5f) * 10.f;
-
-        // Применяем и синус-панорамирование, и параллакс от мыши
         mMenuBgSprite->setPosition({panX + mBgOffset.x, mBgOffset.y});
-
         mWindow.draw(*mMenuBgSprite);
     }
 
+    // --- 2. ЛЕПЕСТКИ (Оставляем как есть) ---
     for (const auto &p : mParticles)
     {
-        sf::CircleShape petal(3.f); // Базовый круг радиусом 3 пикселя
-
-        // Делаем из круга овал (растягиваем по ширине в 1.5 раза)
+        sf::CircleShape petal(3.f);
         petal.setScale({1.5f, 1.0f});
-
         petal.setPosition(p.pos);
         petal.setRotation(sf::degrees(p.pos.y * 0.4f));
-
-        // Цвет сакуры (сделал чуть прозрачнее — 180 вместо 200 для нежности)
         sf::Color sakura(255, 190, 210, static_cast<int>(180 * (p.lifetime / 8.0f)));
         petal.setFillColor(sakura);
-
         mWindow.draw(petal);
     }
 
-    // 3. Заголовок и кнопки (твой дизайн)
+    // --- 3. ЗАГОЛОВОК ---
     float cx = mHudView.getSize().x / 2.f;
-
-    // --- ЗАГОЛОВОК "NINJA TYPING" (С Retina-трюком) ---
     float titleY = 200.f + std::sin(mCenterTextTimer * 1.0f) * 4.f;
 
     sf::Text title = makeText("Ninja Typing", 160, sf::Color::White, cx, titleY);
-
-    // ВОТ ЗДЕСЬ ЗАДАЕТСЯ ШРИФТ ДЛЯ ЗАГОЛОВКА (Можешь поменять "title" на любой другой из твоего списка)
     title.setFont(mRM.font("bold"));
     title.setStyle(sf::Text::Style::Bold);
     title.setLetterSpacing(0.7f);
-    title.setScale({0.5f, 0.5f}); // Сжимаем огромный шрифт для идеальной четкости
-
-    // Тень заголовка
+    title.setScale({0.5f, 0.5f});
     sf::FloatRect b = title.getLocalBounds();
     title.setOrigin({b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f});
 
     sf::Text shadow = title;
     shadow.setFillColor(sf::Color(0, 0, 0, 150));
     shadow.move({4.f, 4.f});
-
     mWindow.draw(shadow);
     mWindow.draw(title);
 
-    // --- КНОПКИ ---
-    // Синие кнопки для режимов
+    // --- 4. ПОДГОТОВКА КНОПОК ---
+    // Сохраняем позицию мыши и блокируем её, если открыты настройки
+    sf::Vector2f realMousePos = mMousePos;
+    if (mShowSettings)
+        mMousePos = {-1000.f, -1000.f};
+
+    // Объявляем все цвета ОДИН раз здесь
     sf::Color greenBtn(90, 215, 151, 70);
-    sf::Color goldenOutline(255, 195, 43, 200); // Темно-синий контур
-
+    sf::Color blueBtn(70, 150, 220, 100);
+    sf::Color goldenOutline(255, 195, 43, 200);
     sf::Color whiteBtn(255, 255, 255, 70);
-    sf::Color exitOutline(180, 180, 180); // Серый контур для белой кнопки
+    sf::Color exitOutline(180, 180, 180);
 
-    if (drawButton("Classic Mode", cx, 360.f, 260.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+    if (drawButton("Classic Mode", cx, 340.f, 260.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
     {
         startGame(GameMode::Classic);
     }
 
-    if (drawButton("Endless Mode", cx, 430.f, 260.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+    if (drawButton("Endless Mode", cx, 400.f, 260.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
     {
         startGame(GameMode::Endless);
     }
 
-    // Белая кнопка выхода (с темным текстом)
-    if (drawButton("Exit", cx, 520.f, 180.f, 50.f, whiteBtn, sf::Color(255, 255, 255), exitOutline))
+    if (drawButton("Settings", cx, 460.f, 260.f, 50.f, blueBtn, sf::Color::White, goldenOutline))
+    {
+        mShowSettings = true;
+        updateAllowedChars();
+        mIsMouseClicked = false;
+    }
+
+    if (drawButton("Exit", cx, 530.f, 180.f, 50.f, whiteBtn, sf::Color(50, 50, 50), exitOutline))
     {
         mWindow.close();
     }
+
+    mMousePos = realMousePos;
+
+    if (mShowSettings)
+    {
+        renderSettingsModal();
+    }
 }
 
-// void Game::startGame(GameMode mode)
-// {
-//     mCurrentMode = mode;
-//     mStats.reset();
+bool Game::drawCheckbox(const std::string &textStr, float x, float y, bool &state)
+{
+    float size = 25.f;
+    sf::RectangleShape box({size, size});
+    box.setPosition({x, y});
+    box.setOrigin({0.f, size / 2.f});
+    box.setFillColor(sf::Color(255, 255, 255, 50));
+    box.setOutlineThickness(2.f);
+    box.setOutlineColor(sf::Color::White);
 
-//     int startLives = (mode == GameMode::Classic) ? CLASSIC_LIVES : ENDLESS_LIVES;
-//     mPlayer.reset(startLives);
+    bool isHovered = box.getGlobalBounds().contains(mMousePos);
+    if (isHovered)
+        box.setOutlineColor(sf::Color::Yellow);
 
-//     mBalloons.reset(mode == GameMode::Classic);
-//     mCurrentBalloon = nullptr;
-//     mIsWaitingForTyping = false;
+    if (state)
+    {
+        sf::RectangleShape check({size - 10.f, size - 10.f});
+        check.setOrigin({(size - 10.f) / 2.f, (size - 10.f) / 2.f});
+        check.setPosition({x + size / 2.f, y});
+        check.setFillColor(sf::Color(180, 255, 100));
+        mWindow.draw(check);
+    }
 
-//     mLastSafeTexture = &mRM.texture("balloon_0");
+    sf::Text txt = makeText(textStr, 42, sf::Color::White, x + size + 15.f, y);
+    txt.setFont(mRM.font("main"));
+    txt.setScale({0.32f, 0.32f});
+    sf::FloatRect b = txt.getLocalBounds();
+    txt.setOrigin({0.f, b.position.y + b.size.y / 2.f});
 
-//     mPlatform.setPosition({PLATFORM_X, PLATFORM_Y});
-//     mWorldView.setCenter({mWorldView.getSize().x / 2.f, WINDOW_H / 2.f}); // Учитываем новую ширину
-//     mIsFinishing = false;
-//     mShowEndCliff = false;
-//     mWaitingForFinalJump = false;
-//     mState = GameState::Playing;
-// }
+    mWindow.draw(box);
+    mWindow.draw(txt);
+
+    if (isHovered && mIsMouseClicked)
+    {
+        state = !state;       
+        updateAllowedChars(); // Сразу обновляем пул букв
+        return true;
+    }
+    return false;
+}
+
+bool Game::drawRadioButton(const std::string &textStr, float x, float y, bool isActive)
+{
+    float radius = 12.f;
+    sf::CircleShape circle(radius);
+    circle.setPosition({x, y});
+    circle.setOrigin({radius, radius});
+    circle.setFillColor(sf::Color(255, 255, 255, 50));
+    circle.setOutlineThickness(2.f);
+    circle.setOutlineColor(sf::Color::White);
+
+    bool isHovered = circle.getGlobalBounds().contains(mMousePos);
+    if (isHovered)
+        circle.setOutlineColor(sf::Color::Yellow);
+
+    if (isActive)
+    {
+        sf::CircleShape dot(6.f);
+        dot.setOrigin({6.f, 6.f});
+        dot.setPosition({x, y});
+        dot.setFillColor(sf::Color(180, 255, 100));
+        mWindow.draw(dot);
+    }
+
+    sf::Text txt = makeText(textStr, 42, sf::Color::White, x + 25.f, y);
+    txt.setFont(mRM.font("main"));
+    txt.setScale({0.32f, 0.32f});
+    sf::FloatRect b = txt.getLocalBounds();
+    txt.setOrigin({0.f, b.position.y + b.size.y / 2.f});
+
+    mWindow.draw(circle);
+    mWindow.draw(txt);
+
+    return (isHovered && mIsMouseClicked);
+}
+
+void Game::renderSettingsModal()
+{
+    float cx = mHudView.getSize().x / 2.f;
+
+    sf::RectangleShape overlay({mHudView.getSize().x, (float)WINDOW_H});
+    overlay.setFillColor(sf::Color(0, 0, 0, 180));
+    mWindow.draw(overlay);
+
+    sf::ConvexShape box = createRoundedRect(500.f, 400.f, 20.f);
+    box.setPosition({cx, WINDOW_H / 2.f});
+    box.setFillColor(sf::Color(40, 75, 115));
+    box.setOutlineThickness(4.f);
+    box.setOutlineColor(sf::Color(255, 195, 43, 200));
+    mWindow.draw(box);
+
+    sf::Text title = makeText("SETTINGS", 70, sf::Color::Yellow, cx, 130.f);
+    title.setFont(mRM.font("bold"));
+    title.setScale({0.35f, 0.35f});
+    sf::FloatRect tb = title.getLocalBounds();
+    title.setOrigin({tb.position.x + tb.size.x / 2.f, tb.position.y + tb.size.y / 2.f});
+    mWindow.draw(title);
+
+    // Блокировка мыши под окном
+    sf::Vector2f realMousePos = mMousePos;
+    // Оставляем mMousePos для взаимодействия с элементами окна
+    float langY = 190.f;
+sf::Text langLabel = makeText("Language:", 60, sf::Color::White, cx - 75.f, langY);
+    langLabel.setFont(mRM.font("main"));
+    langLabel.setScale({0.35f, 0.35f}); 
+    
+    sf::FloatRect lb = langLabel.getLocalBounds();
+    langLabel.setOrigin({lb.position.x + lb.size.x, lb.position.y + lb.size.y / 2.f});
+    mWindow.draw(langLabel);
+    if (drawRadioButton("English", cx - 40.f, langY, mCurrentLanguage == Language::English)) {
+        mCurrentLanguage = Language::English;
+        updateAllowedChars();
+    }
+    if (drawRadioButton("Russian", cx + 90.f, langY, mCurrentLanguage == Language::Russian)) {
+        mCurrentLanguage = Language::Russian;
+        updateAllowedChars();
+    }
+
+    float startY = 245.f;
+    float step = 45.f;
+    float startX = cx - 180.f; 
+
+    drawCheckbox("Lower Case Letters", startX, startY, mUseLowerCase);
+    drawCheckbox("Upper Case Letters", startX, startY + step, mUseUpperCase);
+    drawCheckbox("Digits", startX, startY + step * 2, mUseDigits);
+    drawCheckbox("Special symbols", startX, startY + step * 3, mUseSpecial);
+
+    if (drawButton("Save & Close", cx, 460.f, 220.f, 45.f, sf::Color(0, 174, 84, 50), sf::Color::White, sf::Color(255, 195, 43, 200)))
+    {
+        mShowSettings = false;
+        mIsMouseClicked = false; // Также поглощаем клик при выходе
+    }
+}
 
 void Game::startGame(GameMode mode)
 {
     mCurrentMode = mode;
     mStats.reset();
     mFinalWaitTimer = 0.f;
+
+    updateAllowedChars(); // Генерируем вектор mAllowedChars на основе галочек
+    mBalloons.setAllowedChars(mAllowedChars);
 
     // 1. Сброс игрока и чекпоинтов
     int startLives = (mode == GameMode::Classic) ? CLASSIC_LIVES : ENDLESS_LIVES;
@@ -1054,6 +1019,11 @@ void Game::startGame(GameMode mode)
     mBalloons.reset(mode == GameMode::Classic);
     mCurrentBalloon = nullptr;
     mIsWaitingForTyping = false;
+
+    mIsNewRecord = false;
+    mShowLeaderboard = false;
+
+    mStrikeCount = 0;
 
     // 3. Настройка камеры и платформы
     mPlatform.setPosition({PLATFORM_X, PLATFORM_Y});
@@ -1073,8 +1043,6 @@ void Game::startGame(GameMode mode)
 
         if (mEndCliffSprite)
         {
-            // Устанавливаем позицию скалы.
-            // 330.f - это высота (подбери её вручную, если ниндзя парит или тонет)
             mEndCliffSprite->setPosition({endCliffX, 330.f});
             mShowEndCliff = true; // Показываем скалу сразу, она "ждет" в конце уровня
         }
@@ -1119,13 +1087,6 @@ void Game::renderPlaying()
     {
         mWindow.draw(ex.sprite);
     }
-    // for (const auto &p : mParticles)
-    // {
-    //     sf::RectangleShape dot({4.f, 4.f});
-    //     dot.setPosition(p.pos);
-    //     dot.setFillColor(sf::Color(255, 150, 50, static_cast<int>(255 * (p.lifetime / 0.8f))));
-    //     mWindow.draw(dot);
-    // }
 }
 
 void Game::drawHUD()
@@ -1244,139 +1205,66 @@ void Game::drawHUD()
         drawCenterMessage("Keep typing...");
 }
 
-// --- ВОЗВРАЩАЕМ МЕТОД, КОТОРЫЙ ПОТЕРЯЛСЯ ---
-// void Game::renderGameOver()
-// {
-//     float cx = mHudView.getSize().x / 2.f;
-
-//     std::string titleText = (mState == GameState::Win) ? "YOU WIN!" : "GAME OVER";
-//     sf::Color titleColor = (mState == GameState::Win) ? sf::Color(80, 220, 80) : sf::Color(220, 80, 80);
-
-//     auto over = makeText(titleText, 56, titleColor, cx, 120);
-//     over.setStyle(sf::Text::Style::Bold);
-//     mWindow.draw(over);
-
-//     std::ostringstream statsStr;
-//     statsStr << std::fixed << std::setprecision(1);
-
-//     if (mCurrentMode == GameMode::Classic) {
-//         statsStr << "Time: " << mStats.time() << "s\n";
-//     } else {
-//         statsStr << "Balloons cleared: " << mStats.hits() << "\n";
-//     }
-
-//     statsStr << "CPM: " << std::setprecision(0) << mStats.cpm() << "\n"
-//              << "Accuracy: " << std::setprecision(1) << mStats.accuracy() << "%";
-
-//     mWindow.draw(makeText(statsStr.str(), 24, sf::Color::White, cx, 240));
-//     mWindow.draw(makeText("ENTER to play again", 20, sf::Color(100, 220, 160), cx, 400));
-//     mWindow.draw(makeText("ESC for Menu", 20, sf::Color(160, 160, 180), cx, 450));
-// }
-
-/*void Game::renderGameOver()
-{
-    float cx = mHudView.getSize().x / 2.f;
-
-    // --- ЗАГОЛОВОК ---
-    std::string titleText = (mState == GameState::Win) ? "YOU WIN!" : "GAME OVER";
-    sf::Color titleColor = (mState == GameState::Win) ? sf::Color(180, 219, 152) : sf::Color(255, 224, 224);
-
-    sf::Text over = makeText(titleText, 140, titleColor, cx, 120.f);
-    over.setFont(mRM.font("bold")); // Задаем шрифт
-    over.setStyle(sf::Text::Style::Bold);
-    over.setScale({0.4f, 0.4f});
-
-    sf::FloatRect b = over.getLocalBounds();
-    over.setOrigin({b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f});
-
-    sf::Text shadow = over;
-    shadow.setFillColor(sf::Color(0, 0, 0, 150));
-    shadow.move({1.3f, 1.3f});
-
-    mWindow.draw(shadow);
-    mWindow.draw(over);
-
-    // --- БЛОК СТАТИСТИКИ (Рамочка) ---
-    // Рисуем подложку
-    sf::ConvexShape statsBox = createRoundedRect(340.f, 160.f, 15.f);
-    statsBox.setPosition({cx, 280.f});
-    statsBox.setFillColor(sf::Color(40, 75, 115)); // Полупрозрачный черный
-    statsBox.setOutlineThickness(3.f);
-    statsBox.setOutlineColor(sf::Color(66, 102, 150)); // Белая рамка
-    mWindow.draw(statsBox);
-
-    // Текст статистики
-    std::ostringstream statsStr;
-    statsStr << std::fixed << std::setprecision(1);
-    if (mCurrentMode == GameMode::Classic)
-        statsStr << "Time: " << mStats.time() << "s ";
-    else
-        statsStr << "Balloons: " << mStats.hits() << " ";
-
-    statsStr << "CPM: " << std::setprecision(0) << mStats.cpm() << " "
-             << "Accuracy: " << std::setprecision(1) << mStats.accuracy() << "%";
-
-    sf::Text statsText = makeText(statsStr.str(), 64, sf::Color::White, cx, 280.f);
-    statsText.setFont(mRM.font("light")); // Используем тонкий шрифт для текста
-    statsText.setScale({0.35f, 0.35f});
-    sf::FloatRect sB = statsText.getLocalBounds();
-    statsText.setOrigin({sB.position.x + sB.size.x / 2.f, sB.position.y + sB.size.y / 2.f});
-    mWindow.draw(statsText);
-
-    // --- КНОПКИ ---
-    sf::Color whiteBtn(255, 255, 255, 70);
-    sf::Color greenBtn(90, 215, 151, 70);
-
-    sf::Color goldenOutline(255, 195, 43, 200);
-    sf::Color exitOutline(180, 180, 180);
-
-    if (drawButton("Play Again", cx - 140.f, 440.f, 220.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
-    {
-        startGame(mCurrentMode);
-    }
-
-    if (drawButton("Back to Menu", cx + 140.f, 440.f, 220.f, 50.f, whiteBtn, sf::Color::White, exitOutline))
-    {
-        mState = GameState::Menu;
-    }
-}*/
-
 void Game::renderGameOver()
 {
     float cx = mHudView.getSize().x / 2.f;
 
-    // --- 1. ЗАГОЛОВОК (GAME OVER / YOU WIN) ---
-    std::string titleText = (mState == GameState::Win) ? "YOU WIN!" : "GAME OVER";
-    sf::Color titleColor = (mState == GameState::Win) ? sf::Color(180, 219, 152) : sf::Color(255, 220, 220);
+    std::string titleText = "";
+    sf::Color titleColor = sf::Color::White;
+    float pulseScale = 1.0f;
 
-    sf::Text over = makeText(titleText, 140, titleColor, cx, 80.f);
-    over.setFont(mRM.font("bold"));
-    over.setStyle(sf::Text::Style::Bold);
-    over.setScale({0.4f, 0.4f});
+    if (mCurrentMode == GameMode::Endless)
+    {
+        if (mIsNewRecord)
+        {
+            titleText = "NEW RECORD!";
+            titleColor = sf::Color(255, 215, 0); // Золотой
+            pulseScale = 1.0f + 0.05f * std::sin(mMenuAnimTimer * 3.0f);
+        }
+    }
+    else
+    {
+        if (mState == GameState::Win)
+        {
+            titleText = "YOU WIN!";
+            titleColor = sf::Color(141, 255, 52); 
+        }
+        else
+        {
+            titleText = "GAME OVER";
+            titleColor = sf::Color(255, 52, 86); 
+        }
+    }
 
-    sf::FloatRect b = over.getLocalBounds();
-    over.setOrigin({b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f});
+    if (!titleText.empty())
+    {
+        sf::Text over = makeText(titleText, 140, titleColor, cx, 80.f);
+        over.setFont(mRM.font("bold"));
+        over.setStyle(sf::Text::Style::Bold);
+        over.setScale({0.4f * pulseScale, 0.4f * pulseScale});
 
-    sf::Text shadow = over;
-    shadow.setFillColor(sf::Color(0, 0, 0, 150));
-    shadow.move({2.f, 2.f});
+        sf::FloatRect b = over.getLocalBounds();
+        over.setOrigin({b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f});
 
-    mWindow.draw(shadow);
-    mWindow.draw(over);
+        sf::Text shadow = over;
+        shadow.setFillColor(sf::Color(0, 0, 0, 150));
+        shadow.move({2.f, 2.f});
 
-    // --- 2. ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ КРУГОВЫХ ДИАГРАММ ---
+        mWindow.draw(shadow);
+        mWindow.draw(over);
+    }
+
     auto drawStatWidget = [&](float x, float y, float radius, float percent, sf::Color ringColor, const std::string &mainVal, const std::string &subVal, const std::string &labelName)
     {
         // А. Рисуем темный базовый круг (подложка)
         sf::CircleShape base(radius);
         base.setOrigin({radius, radius});
         base.setPosition({x, y});
-        base.setFillColor(sf::Color(40, 60, 90, 200)); // Темно-синий фон круга
+        base.setFillColor(sf::Color(40, 60, 90, 200)); 
         base.setOutlineThickness(7.f);
-        base.setOutlineColor(sf::Color(66, 102, 150)); // Светло-синяя граница
+        base.setOutlineColor(sf::Color(66, 102, 150)); 
         mWindow.draw(base);
 
-        // Б. Рисуем цветное кольцо прогресса (Математика треугольников)
         int segments = 200; // Качество круга (чем больше, тем круглее)
         int activeSegments = static_cast<int>(segments * percent);
 
@@ -1421,12 +1309,11 @@ void Game::renderGameOver()
             mWindow.draw(t);
         };
 
-        drawCenteredText(mainVal, y - 10.f, 100, sf::Color::White, true);           // Главная цифра (крупно)
-        drawCenteredText(subVal, y + 25.f, 34, sf::Color(200, 200, 200), false);    // Подпись внутри (мелко)
-        drawCenteredText(labelName, y + radius + 30.f, 60, sf::Color::White, true); // Подпись ПОД кругом
+        drawCenteredText(mainVal, y - 10.f, 100, sf::Color::White, true);           
+        drawCenteredText(subVal, y + 25.f, 34, sf::Color(200, 200, 200), false);   
+        drawCenteredText(labelName, y + radius + 30.f, 60, sf::Color::White, true); 
     };
 
-    // --- 3. РАСЧЕТ И ОТРИСОВКА ВИДЖЕТОВ ---
     float widgetY = 260.f; // Высота центров кругов
     float rad = 80.f;      // Радиус кругов
 
@@ -1436,17 +1323,12 @@ void Game::renderGameOver()
     timeStr << std::fixed << std::setprecision(1) << mStats.time() << "s";
     cpmStr << std::fixed << std::setprecision(0) << mStats.cpm();
 
-    // Левый виджет (Точность)
     float accPercent = mStats.accuracy() / 100.f;
     sf::Color accColor = (accPercent > 0.9f) ? sf::Color(255, 200, 50) : sf::Color(220, 80, 80); // Желтый если > 90%, иначе красный
     drawStatWidget(cx - 220.f, widgetY, rad, accPercent, accColor, accStr.str(), "real accuracy", "accuracy");
 
-    // Центральный виджет (Время)
-    // У времени нет "процента прогресса", поэтому кольцо залито на 100% (1.0f) нейтральным цветом
     drawStatWidget(cx, widgetY - 20.f, rad * 0.85f, 1.0f, sf::Color(100, 150, 200), timeStr.str(), "duration", "time");
 
-    // Правый виджет (Скорость CPM)
-    // Рассчитываем прогресс: допустим, 250 CPM — это 100% закрашенного кольца
     float cpmPercent = std::min(1.0f, mStats.cpm() / 250.f);
     drawStatWidget(cx + 220.f, widgetY, rad, cpmPercent, sf::Color(255, 200, 50), cpmStr.str(), "cpm", "speed");
 
@@ -1465,33 +1347,120 @@ void Game::renderGameOver()
     scoreLabel.setOrigin({slB.position.x + slB.size.x / 2.f, slB.position.y + slB.size.y / 2.f});
     mWindow.draw(scoreLabel);
 
-    // Разделительная линия (как на скриншоте)
     sf::RectangleShape line({200.f, 1.7f});
     line.setOrigin({100.f, 1.f});
     line.setPosition({cx, 425.f});
     line.setFillColor(sf::Color(255, 255, 255, 100));
     mWindow.draw(line);
 
+    // Защита от кликов сквозь модальное окно
+    sf::Vector2f realMousePos = mMousePos;
+    if (mShowLeaderboard)
+        mMousePos = {-1000.f, -1000.f};
+
+    // --- 4. КНОПКИ (РАЗДЕЛЕННАЯ ЛОГИКА) ---
     sf::Color whiteBtn(255, 255, 255, 70);
     sf::Color greenBtn(90, 215, 151, 70);
-
+    sf::Color blueBtn(70, 150, 220, 100);
     sf::Color goldenOutline(255, 195, 43, 200);
     sf::Color exitOutline(180, 180, 180);
 
-    if (drawButton("Play Again", cx - 140.f, 520.f, 220.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+    if (mCurrentMode == GameMode::Endless)
     {
-        startGame(mCurrentMode);
+        // ТРИ КНОПКИ В РЯД (С таблицей рекордов)
+        if (drawButton("Play Again", cx - 240.f, 520.f, 200.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+        {
+            startGame(mCurrentMode);
+        }
+        if (drawButton("Best Results", cx, 520.f, 220.f, 50.f, blueBtn, sf::Color::White, goldenOutline))
+        {
+            mShowLeaderboard = true;
+        }
+        if (drawButton("Back to Menu", cx + 240.f, 520.f, 200.f, 50.f, whiteBtn, sf::Color::White, exitOutline))
+        {
+            mState = GameState::Menu;
+        }
+    }
+    else
+    {
+        if (drawButton("Play Again", cx - 130.f, 520.f, 200.f, 50.f, greenBtn, sf::Color::White, goldenOutline))
+        {
+            startGame(mCurrentMode);
+        }
+        if (drawButton("Back to Menu", cx + 130.f, 520.f, 200.f, 50.f, whiteBtn, sf::Color::White, exitOutline))
+        {
+            mState = GameState::Menu;
+        }
     }
 
-    if (drawButton("Back to Menu", cx + 140.f, 520.f, 220.f, 50.f, whiteBtn, sf::Color::White, exitOutline))
+    mMousePos = realMousePos; // Возвращаем мышь
+
+    if (mShowLeaderboard)
     {
-        mState = GameState::Menu;
+        // Темный полупрозрачный фон на весь экран
+        sf::RectangleShape overlay({mHudView.getSize().x, (float)WINDOW_H});
+        overlay.setFillColor(sf::Color(0, 0, 0, 180));
+        mWindow.draw(overlay);
+
+        sf::ConvexShape modalBox = createRoundedRect(400.f, 380.f, 20.f);
+        modalBox.setPosition({cx, WINDOW_H / 2.f});
+        modalBox.setFillColor(sf::Color(40, 75, 115)); 
+        modalBox.setOutlineThickness(4.f);
+        modalBox.setOutlineColor(sf::Color(255, 195, 43, 200)); 
+        mWindow.draw(modalBox);
+
+        sf::Text title = makeText("TOP 5 RESULTS", 70, sf::Color::White, cx, 160.f);
+        title.setFont(mRM.font("bold"));
+        title.setScale({0.4f, 0.4f});
+        sf::FloatRect tb = title.getLocalBounds();
+        title.setOrigin({tb.position.x + tb.size.x / 2.f, tb.position.y + tb.size.y / 2.f});
+        mWindow.draw(title);
+
+        sf::RectangleShape line({300.f, 2.f});
+        line.setOrigin({150.f, 1.f});
+        line.setPosition({cx, 190.f});
+        line.setFillColor(sf::Color(255, 255, 255, 100));
+        mWindow.draw(line);
+
+        float anchorX = cx - 25.f;
+
+        float horizontalGap = 80.f;
+
+        for (size_t i = 0; i < mTopScores.size(); ++i)
+        {
+            float rowY = 230.f + i * 42.f; 
+
+            sf::Color rowColor = (mTopScores[i] == mStats.score() && mStats.score() > 0) ? sf::Color(255, 215, 0) : sf::Color::White;
+
+            sf::Text numTxt(mRM.font("main"), std::to_string(i + 1) + ".", 64);
+            numTxt.setFillColor(rowColor);
+            numTxt.setScale({0.35f, 0.35f});
+
+            sf::FloatRect nB = numTxt.getLocalBounds();
+            // Origin в правый край (position.x + size.x)
+            numTxt.setOrigin({nB.position.x + nB.size.x, nB.position.y + nB.size.y / 2.f});
+            numTxt.setPosition({cx - (horizontalGap), rowY});
+            mWindow.draw(numTxt);
+
+            sf::Text ptsTxt(mRM.font("main"), "  " + std::to_string(mTopScores[i]) + " points", 64);
+            ptsTxt.setFillColor(rowColor);
+            ptsTxt.setScale({0.35f, 0.35f});
+
+            sf::FloatRect pB = ptsTxt.getLocalBounds();
+            // Origin в левый край (position.x)
+            ptsTxt.setOrigin({pB.position.x, pB.position.y + pB.size.y / 2.f});
+            ptsTxt.setPosition({cx - (horizontalGap / 2.f), rowY});
+            // ptsTxt.setPosition({anchorX, rowY});
+            mWindow.draw(ptsTxt);
+        }
+
+        // Кнопка "Х" для закрытия (в правом верхнем углу плашки)
+        if (drawButton("X", cx + 160.f, 150.f, 40.f, 40.f, sf::Color(220, 80, 80, 80), sf::Color::White, sf::Color::White))
+        {
+            mShowLeaderboard = false;
+        }
     }
 }
-
-// -----------------------------------------------------
-// МАСШТАБИРОВАНИЕ И ЭКРАН
-// -----------------------------------------------------
 
 void Game::adjustViewports(unsigned int width, unsigned int height)
 {

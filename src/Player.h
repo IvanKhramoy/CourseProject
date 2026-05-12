@@ -29,6 +29,10 @@ public:
     void setBalloonPosition(sf::Vector2f balloonPos);
     void startFalling();
 
+    void hide() { mState = State::Respawning; }
+
+    void triggerErrorPulse() { mErrorPulseTimer = 0.15f; }
+
     void setFinalJump(bool final) { mIsFinalJump = final; }
 
     int lives() const { return mLives; }
@@ -51,6 +55,8 @@ private:
 
     const ResourceManager &mRM;
     std::unique_ptr<sf::Sprite> mSprite; // Спрайт ниндзя
+
+    float mErrorPulseTimer = 0.f;
 
     sf::Vector2f mPos;
     sf::Vector2f mStart;

@@ -60,7 +60,7 @@ Balloon* BalloonManager::nextAvailableBalloon(float playerX) {
 }
 
 void BalloonManager::forceSpawnBalloonAt(float x) {
-    char letter = 'a' + (std::rand() % 26);
+    std::uint32_t letter = mPool[std::rand() % mPool.size()];
     
     int colorIndex = std::rand() % Paths::BALLOON_COLORS_COUNT;
     const sf::Texture& tex = mRM.texture("balloon_" + std::to_string(colorIndex));
@@ -85,7 +85,9 @@ bool BalloonManager::hasTarget() const {
 }
 
 void BalloonManager::spawnBalloon() {
-    char letter = 'a' + (std::rand() % 26);
+    // char letter = 'a' + (std::rand() % 26);
+    
+    std::uint32_t letter = mPool[std::rand() % mPool.size()];
     
     // Выбираем случайный цвет от 0 до BALLOON_COLORS_COUNT-1
     int colorIndex = std::rand() % Paths::BALLOON_COLORS_COUNT;

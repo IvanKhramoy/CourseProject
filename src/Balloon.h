@@ -1,5 +1,6 @@
 #pragma once
 #include <SFML/Graphics.hpp>
+#include <cstdint>
 
 class ResourceManager;
 
@@ -14,7 +15,7 @@ public:
     };
 
     // Теперь конструктор принимает готовую текстуру
-    Balloon(char letter, float x, float y, float fallSpeed, const sf::Texture &texture, const ResourceManager &rm);
+    Balloon(std::uint32_t mLetter, float x, float y, float fallSpeed, const sf::Texture &texture, const ResourceManager &rm);
 
     void update(float dt);
     void draw(sf::RenderWindow &window);
@@ -29,7 +30,7 @@ public:
         mText.setString("");
     }
 
-    char letter() const { return mLetter; }
+    std::uint32_t letter() const { return mLetter; }
     State state() const { return mState; }
     sf::Vector2f position() const { return mSprite.getPosition(); }
     // Возвращает ссылку на текущую текстуру спрайта
@@ -38,7 +39,7 @@ public:
 private:
     void centerText();
 
-    char mLetter;
+    std::uint32_t mLetter;
     State mState;
     float mFallSpeed;
     bool mIsTarget;
@@ -48,8 +49,7 @@ private:
 
     // sf::CircleShape mGlow;     // Вместо спрайта свечения
     sf::VertexArray mGlow;
-    sf::ConvexShape mArrowL;   // Левая стрелка
-    sf::ConvexShape mArrowR;   // Правая стрелка
+    sf::ConvexShape mArrowL;      // Левая стрелка
+    sf::ConvexShape mArrowR;      // Правая стрелка
     float mTargetAnimTimer = 0.f; // Таймер для пульсации
 };
-

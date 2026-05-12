@@ -8,20 +8,20 @@ constexpr unsigned int FPS_LIMIT  = 60;
 // ─── Игрок и Окружение ───────────────────────────────────
 constexpr int   CLASSIC_LIVES      = 3;
 constexpr int   ENDLESS_LIVES      = 1;
-constexpr float PLAYER_WIDTH       = 32.f;  // Уменьшили (было 48)
-constexpr float PLAYER_HEIGHT      = 48.f;  // Уменьшили (было 72)
+constexpr float PLAYER_WIDTH       = 32.f;  
+constexpr float PLAYER_HEIGHT      = 48.f;  
 constexpr float JUMP_DURATION      = 0.45f;
-constexpr float PLATFORM_X         = 40.f;  // Сдвинули к самому левому краю (было 100)
+constexpr float PLATFORM_X         = 40.f; 
 constexpr float PLATFORM_Y         = 450.f;
 constexpr float FALL_LIMIT         = WINDOW_H + 50.f;
 
 // ─── Режимы Игры ─────────────────────────────────────────
-constexpr int   CLASSIC_TARGET_BALLOONS = 50;
+constexpr int   CLASSIC_TARGET_BALLOONS = 10;
 
 // ─── Шары ────────────────────────────────────────────────
-constexpr float BALLOON_RADIUS     = 37.f;  // Уменьшили (было 48)
-constexpr float BALLOON_SPACING    = 140.f; // Сильно сблизили шары (было 240)
-constexpr float BALLOON_START_Y    = 120.f; // Чуть приподняли их (было 150)
+constexpr float BALLOON_RADIUS     = 37.f;  
+constexpr float BALLOON_SPACING    = 140.f; 
+constexpr float BALLOON_START_Y    = 120.f; 
 constexpr int   BALLOON_Y_VARIATION = 40;
 constexpr float INITIAL_FALL_SPEED = 65.f;
 constexpr float SPEED_INCREMENT    = 1.f;
@@ -69,7 +69,4 @@ namespace Paths {
     inline const std::string NINJA_4 = "assets/textures/ninja-4.png";
     inline const std::string NINJA_5 = "assets/textures/ninja-5.png";
     constexpr int BALLOON_COLORS_COUNT = 4;
-    // inline const std::string FONT       = "../assets/fonts/arial.ttf";
-    // inline const std::string FONT_FALLBACK = "/System/Library/Fonts/Supplemental/Arial.ttf";
-    // inline const std::string BG_TEXTURE    = "../assets/textures/Back.jpg";
 }

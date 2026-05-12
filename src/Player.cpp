@@ -18,25 +18,12 @@ void Player::reset(int startingLives)
     mAnimTimer = 0.f;
     mIsFinalJump = false;
 
-    // updateAnimation(0.f); // Загружаем первую картинку
 }
 
 void Player::update(float dt)
 {
     switch (mState)
     {
-        // case State::Jumping:
-        //     mJumpTimer += dt;
-        //     {
-        //         float t = mJumpTimer / JUMP_DURATION;
-        //         if (t >= 1.f)
-        //         {
-        //             t = 1.f;
-        //             mState = State::OnBalloon;
-        //         }
-        //         mPos = mStart + (mTarget - mStart) * t;
-        //     }
-        //     break;
 
     case State::Jumping:
         mJumpTimer += dt;
@@ -106,6 +93,16 @@ void Player::updateAnimation(float dt)
 {
     mAnimTimer += dt;
 
+    if (mErrorPulseTimer > 0.f)
+        mErrorPulseTimer -= dt;
+
+    float pulse = 1.0f;
+    if (mErrorPulseTimer > 0.f)
+    {
+        // Синус от 0 до Пи дает идеальный "горб"
+        pulse = 1.0f + 0.2f * std::sin((mErrorPulseTimer / 0.15f) * 3.14159f);
+    }
+
     std::string currentTexture = "ninja-1"; // По умолчанию
 
     // 1. ВЫБИРАЕМ КАРТИНКУ В ЗАВИСИМОСТИ ОТ СОСТОЯНИЯ
@@ -162,8 +159,13 @@ void Player::updateAnimation(float dt)
             }
         }
 
-        mSprite->setScale({mSprite->getScale().x * perspectiveScale,
-                           mSprite->getScale().y * perspectiveScale});
+        mSprite->setScale({
+            mSprite->getScale().x * perspectiveScale * pulse,  // <--- Добавили * pulse
+            mSprite->getScale().y * perspectiveScale * pulse   // <--- Добавили * pulse
+        });
+
+        // mSprite->setScale({mSprite->getScale().x * perspectiveScale,
+        //                    mSprite->getScale().y * perspectiveScale});
 
         if (mState == State::OnPlatform)
         {

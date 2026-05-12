@@ -14,6 +14,7 @@ public:
     void reset(bool isClassicMode);
     void update(float dt, float cameraRightEdge, float playerX);
     void draw(sf::RenderWindow &window) const;
+    void setAllowedChars(const std::vector<std::uint32_t>& chars) { mPool = chars; }
 
     Balloon *currentTarget(float playerX);
     Balloon *nextAvailableBalloon(float playerX);
@@ -38,4 +39,6 @@ private:
     float mNextX;
     int mBalloonsSpawned;
     bool mIsClassicMode;
+
+    std::vector<std::uint32_t> mPool = {'a'};
 };

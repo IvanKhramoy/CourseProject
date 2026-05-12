@@ -155,4 +155,24 @@ private:
     bool mIsNewRecord = false;
     bool mShowLeaderboard = false;
     std::vector<int> mTopScores;
+
+    int mStrikeCount = 0;
+
+    bool mShowSettings = false;
+    enum class Language { English, Russian };
+    Language mCurrentLanguage = Language::English;
+    
+    bool mUseLowerCase = true;
+    bool mUseUpperCase = false;
+    bool mUseDigits    = false;
+    bool mUseSpecial   = false;
+
+    std::vector<std::uint32_t> mAllowedChars; // Пул символов для генерации
+    void updateAllowedChars();             // Метод обновления пула
+
+    // IMGUI: Новые элементы интерфейса
+    bool drawCheckbox(const std::string& textStr, float x, float y, bool& state);
+    bool drawRadioButton(const std::string& textStr, float x, float y, bool isActive);
+
+    void renderSettingsModal();
 };

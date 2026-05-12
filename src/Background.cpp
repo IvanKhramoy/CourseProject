@@ -1,7 +1,7 @@
 #include "Background.h"
 #include <cmath>
 
-// ИСПРАВЛЕНИЕ: Передаем текстуру в mSprite через список инициализации (двоеточие)
+// Передаем текстуру в mSprite через список инициализации (двоеточие)
 Background::Background(const sf::Texture& texture, float targetHeight) 
     : mSprite(texture) 
 {

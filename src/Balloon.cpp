@@ -2,7 +2,7 @@
 #include "Constants.h"
 #include "ResourceManager.h"
 
-Balloon::Balloon(char letter, float x, float y, float fallSpeed, const sf::Texture &texture, const ResourceManager &rm)
+Balloon::Balloon(std::uint32_t letter, float x, float y, float fallSpeed, const sf::Texture &texture, const ResourceManager &rm)
     : mLetter(letter), mState(State::Idle), mFallSpeed(fallSpeed), mIsTarget(false), mSprite(texture) // Инициализируем спрайт текстурой (SFML 3)
       ,
       mText(rm.font("main"))
@@ -34,17 +34,10 @@ Balloon::Balloon(char letter, float x, float y, float fallSpeed, const sf::Textu
     mText.setStyle(sf::Text::Style::Bold);
 
     // 3. Настраиваем текст
-    mText.setString(std::string(1, letter));
-    // mText.setCharacterSize(80);
-    // mText.setCharacterSize(26);
-    // mText.setScale({0.35f, 0.35f});
-    // mText.setFillColor(sf::Color::White);
-    // mText.setStyle(sf::Text::Style::Bold);
-    centerText();
+    // mText.setString(std::string(1, letter));
+   mText.setString(sf::String(static_cast<char32_t>(letter)));
 
-    // mGlow.setRadius(BALLOON_RADIUS * 1.5f);
-    // mGlow.setOrigin({BALLOON_RADIUS * 1.5f, BALLOON_RADIUS * 1.5f});
-    // mGlow.setFillColor(sf::Color(255, 255, 255, 50));
+    centerText();
 
     mGlow.setPrimitiveType(sf::PrimitiveType::TriangleFan);
     // 33 вершины: 1 центр + 32 луча вокруг
@@ -77,61 +70,20 @@ void Balloon::update(float dt)
     }
 }
 
-// void Balloon::draw(sf::RenderWindow& window) const {
-//     if (mState == State::Done) return;
-//     if (mIsTarget) {
-//         // Оставляем небольшое круглое свечение позади шара-цели
-//         sf::CircleShape glow(BALLOON_RADIUS + 6.f);
-//         glow.setOrigin({BALLOON_RADIUS + 6.f, BALLOON_RADIUS + 6.f});
-//         glow.setPosition(mSprite.getPosition());
-//         glow.setFillColor(sf::Color(255, 255, 255, 70));
-//         window.draw(glow);
-//     }
-//     window.draw(mSprite);
-//     window.draw(mText);
-// }
-
 void Balloon::draw(sf::RenderWindow &window) 
 {
     if (mState == State::Done)
         return;
 
-    // if (mIsTarget) {
-    //     // 1. Вращающееся свечение (просто большой круг)
-    //     sf::CircleShape glow = mGlow;
-    //     glow.setPosition(mSprite.getPosition());
-    //     glow.rotate(sf::degrees(mTargetAnimTimer * 50.f)); // Вращение
-    //     window.draw(glow);
-
-    //     // 2. Пульсирующие стрелочки
-    //     float wave = std::sin(mTargetAnimTimer * 5.f) * 5.f; // Амплитуда 5 пикселей
-    //     int alpha = static_cast<int>(150 + 105 * std::sin(mTargetAnimTimer * 8.f)); // Пульсация яркости
-
-    //     // Левая стрелка
-    //     sf::ConvexShape arrowL = mArrowL;
-    //     arrowL.setPosition(mSprite.getPosition() + sf::Vector2f(-BALLOON_RADIUS - 15.f - wave, 0.f));
-    //     arrowL.setFillColor(sf::Color(180, 255, 100, alpha));
-    //     window.draw(arrowL);
-
-    //     // Правая стрелка (отражаем)
-    //     sf::ConvexShape arrowR = mArrowR;
-    //     arrowR.setScale({-1.f, 1.f});
-    //     arrowR.setPosition(mSprite.getPosition() + sf::Vector2f(BALLOON_RADIUS + 15.f + wave, 0.f));
-    //     arrowR.setFillColor(sf::Color(180, 255, 100, alpha));
-    //     window.draw(arrowR);
-    // }
-
     if (mIsTarget) {
         float radius = BALLOON_RADIUS * 1.4f;
         
-        // 1. Центр свечения (ярко-голубой, полупрозрачный)
         mGlow[0].position = mSprite.getPosition();
         mGlow[0].color = sf::Color(255, 215, 0, 150);
 
-        // 2. Генерируем лучи вокруг
         for (int i = 0; i <= 33; ++i) {
-            float angle = i * (6.2831853f / 32.f) + (mTargetAnimTimer * 0.3f); // Вращение
-            float r = (i % 2 == 0) ? radius : radius * 0.6f; // Лучи разной длины
+            float angle = i * (6.2831853f / 32.f) + (mTargetAnimTimer * 0.3f); 
+            float r = (i % 2 == 0) ? radius : radius * 0.6f; 
             
             sf::Vector2f pos = {
                 mSprite.getPosition().x + r * std::cos(angle),
@@ -139,14 +91,12 @@ void Balloon::draw(sf::RenderWindow &window)
             };
             
             mGlow[i + 1].position = pos;
-            // Цвет: на концах лучей прозрачный (Alpha = 0)
             mGlow[i + 1].color = sf::Color(100, 200, 255, 0); 
         }
         window.draw(mGlow);
 
-        // 3. Стрелочки (теперь они будут двигаться плавнее)
-        float wave = std::sin(mTargetAnimTimer * 3.0f) * 1.5f; // Амплитуда 2 пикселя
-        int alpha = static_cast<int>(150 + 105 * std::sin(mTargetAnimTimer * 2.0f)); // Замедлили мерцание
+        float wave = std::sin(mTargetAnimTimer * 3.0f) * 1.5f; 
+        int alpha = static_cast<int>(150 + 105 * std::sin(mTargetAnimTimer * 2.0f)); 
 
         mArrowL.setFillColor(sf::Color(180, 255, 100, alpha));
         mArrowL.setPosition(mSprite.getPosition() + sf::Vector2f(-BALLOON_RADIUS - 12.f - wave, 0.f));
